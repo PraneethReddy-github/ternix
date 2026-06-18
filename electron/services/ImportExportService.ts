@@ -27,9 +27,18 @@ class ImportExportServiceImpl {
 
   commit(sessions: SessionInput[]): number {
     let n = 0
+    const existing = sessionsRepo.list()
     for (const s of sessions) {
-      sessionsRepo.create(s)
-      n++
+      const isDuplicate = existing.some(e =>
+        e.name === s.name &&
+        e.protocol === s.protocol &&
+        (e.host || '') === (s.host || '') &&
+        (e.username || '') === (s.username || '')
+      )
+      if (!isDuplicate) {
+        sessionsRepo.create(s)
+        n++
+      }
     }
     return n
   }

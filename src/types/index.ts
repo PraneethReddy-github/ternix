@@ -201,6 +201,23 @@ export interface KeyboardInteractivePrompt {
   prompts: { prompt: string; echo: boolean }[]
 }
 
+/** Emitted by main when a session is missing credentials at connect time. */
+export interface CredentialRequest {
+  tabId: string
+  sessionId: number
+  sessionName: string
+  host: string | null
+  username: string | null
+  /** Keys already in the vault, offered as quick-pick options. */
+  vaultKeys: { id: number; name: string; key_type: string; fingerprint: string | null }[]
+}
+
+/** Sent from renderer back to main with the user's chosen credentials. */
+export type CredentialResponse =
+  | { type: 'password'; password: string; save: boolean }
+  | { type: 'key'; keyId: number; save: boolean }
+  | { type: 'cancel' }
+
 // ---- SFTP ----
 
 export interface SftpEntry {

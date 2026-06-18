@@ -68,6 +68,19 @@ export function NewSessionDialog({ session, groupId, onClose }: { session?: Sess
 
   const save = async () => {
     if (!form.name.trim()) return notify('Name is required', 'error')
+    
+    // Check for duplicates
+    const isDuplicate = sessions.some(s =>
+      s.id !== session?.id &&
+      s.name.trim() === form.name.trim() &&
+      s.protocol === form.protocol &&
+      (s.host || '').trim() === (form.host || '').trim() &&
+      (s.username || '').trim() === (form.username || '').trim()
+    )
+    if (isDuplicate) {
+      return notify('A session with this name, protocol, host, and username already exists', 'error')
+    }
+
     const payload: SessionInput = { ...form }
     if (password) payload.password = password
     if (passphrase) payload.passphrase = passphrase

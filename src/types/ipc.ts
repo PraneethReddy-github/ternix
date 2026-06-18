@@ -20,6 +20,8 @@ import type {
   HostKeyPrompt,
   HostKeyDecision,
   KeyboardInteractivePrompt,
+  CredentialRequest,
+  CredentialResponse,
   ImportSource,
   ExportTarget,
   ImportResult,
@@ -54,6 +56,8 @@ export interface TernixApi {
     respondHostKey(tabId: string, decision: HostKeyDecision): void
     onKbInteractive(cb: (p: KeyboardInteractivePrompt) => void): () => void
     respondKbInteractive(tabId: string, responses: string[]): void
+    onNeedsCredentials(cb: (req: CredentialRequest) => void): () => void
+    respondCredentials(tabId: string, response: CredentialResponse): void
     latency(tabId: string): Promise<number | null>
   }
   sftp: {

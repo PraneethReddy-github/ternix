@@ -44,6 +44,8 @@ const api: TernixApi = {
     respondHostKey: (tabId, decision) => ipcRenderer.send('terminal:hostkey:respond', tabId, decision),
     onKbInteractive: (cb) => subscribe('terminal:kbi', cb),
     respondKbInteractive: (tabId, responses) => ipcRenderer.send('terminal:kbi:respond', tabId, responses),
+    onNeedsCredentials: (cb) => subscribe('terminal:needs-credentials', cb),
+    respondCredentials: (tabId, response) => ipcRenderer.send('terminal:credentials-respond', tabId, response),
     latency: (tabId) => invoke('terminal:latency', tabId)
   },
   sftp: {

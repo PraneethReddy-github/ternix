@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import { Client, type ClientChannel, type ConnectConfig } from 'ssh2'
-import type { Session } from '@shared/index'
+import type { Session, CredentialResponse } from '@shared/index'
 import { ConnectionManager, type TerminalBackend } from './ConnectionManager'
 import { sessionsRepo, keysRepo, knownHostsRepo, settingsRepo } from '../db/repo'
 import { Bus } from './bus'
@@ -17,6 +17,9 @@ interface PendingHostKey {
 interface PendingKbi {
   finish: (responses: string[]) => void
 }
+interface PendingCredentials {
+  resolve: (r: CredentialResponse) => void
+}
 
 export interface SshHandle extends TerminalBackend {
   client: Client
@@ -32,6 +35,7 @@ export function fingerprintOf(key: Buffer): string {
 class SshServiceImpl {
   private pendingHostKey = new Map<string, PendingHostKey>()
   private pendingKbi = new Map<string, PendingKbi>()
+  private pendingCredentials = new Map<string, PendingCredentials>()
 
   /** Renderer → main response for a host-key prompt. */
   respondHostKey(tabId: string, decision: 'accept' | 'always' | 'reject'): void {
@@ -55,11 +59,64 @@ class SshServiceImpl {
     p.finish(responses)
   }
 
+  /** Renderer → main response for the credential picker modal. */
+  respondCredentials(tabId: string, response: CredentialResponse): void {
+    const p = this.pendingCredentials.get(tabId)
+    if (!p) return
+    this.pendingCredentials.delete(tabId)
+    p.resolve(response)
+  }
+
   /** Establish a full SSH session bound to a tab (handles jump-host chains). */
   async spawn(tabId: string, session: Session, cols: number, rows: number): Promise<{ backend: SshHandle; banner?: string }> {
     ConnectionManager.pushStatus(tabId, 'connecting', `Connecting to ${session.host}…`)
 
-    const client = await this.connectChain(tabId, session)
+    // ── Credential check ────────────────────────────────────────────────────
+    // If the session has no stored password or no linked SSH key, show the
+    // GUI credential picker before attempting any network connection.
+    const secrets = sessionsRepo.getSecrets(session.id)
+    const needsCreds =
+      (session.auth_type === 'password' && !secrets.password) ||
+      (session.auth_type === 'key' && !session.ssh_key_id)
+
+    // Holds one-time override credentials for this connection only.
+    let onetimePassword: string | null = null
+    let onetimeKeyId: number | null = null
+
+    if (needsCreds) {
+      ConnectionManager.pushStatus(tabId, 'connecting', 'Waiting for credentials…')
+      const vaultKeys = keysRepo.list().map((k) => ({
+        id: k.id, name: k.name, key_type: k.key_type, fingerprint: k.fingerprint
+      }))
+      const response = await new Promise<CredentialResponse>((resolve) => {
+        this.pendingCredentials.set(tabId, { resolve })
+        Bus.emit('terminal:needs-credentials', {
+          tabId,
+          sessionId: session.id,
+          sessionName: session.name,
+          host: session.host,
+          username: session.username,
+          vaultKeys
+        })
+      })
+
+      if (response.type === 'cancel') {
+        throw new Error('Connection cancelled by user.')
+      }
+
+      if (response.type === 'password') {
+        onetimePassword = response.password
+        session.auth_type = 'password'
+      } else if (response.type === 'key') {
+        onetimeKeyId = response.keyId
+        session.auth_type = 'key'
+      }
+
+      ConnectionManager.pushStatus(tabId, 'connecting', `Connecting to ${session.host}…`)
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    const client = await this.connectChain(tabId, session, onetimePassword, onetimeKeyId)
     let banner: string | undefined
     client.on('banner', (msg) => {
       banner = msg
@@ -124,7 +181,7 @@ class SshServiceImpl {
   }
 
   /** Recursively connect through any configured jump-host chain, returning the target client. */
-  private async connectChain(tabId: string, session: Session): Promise<Client> {
+  private async connectChain(tabId: string, session: Session, onetimePassword?: string | null, onetimeKeyId?: number | null): Promise<Client> {
     if (session.jump_host_id) {
       const jump = sessionsRepo.get(session.jump_host_id)
       if (!jump) throw new Error('Jump host session not found')
@@ -134,14 +191,14 @@ class SshServiceImpl {
           err ? reject(err) : resolve(ch as unknown as NodeJS.ReadWriteStream)
         )
       })
-      return this.connectOne(tabId, session, { sock: stream as any })
+      return this.connectOne(tabId, session, { sock: stream as any }, onetimePassword, onetimeKeyId)
     }
-    return this.connectOne(tabId, session, {})
+    return this.connectOne(tabId, session, {}, onetimePassword, onetimeKeyId)
   }
 
-  private async connectOne(tabId: string, session: Session, extra: Partial<ConnectConfig>): Promise<Client> {
+  private async connectOne(tabId: string, session: Session, extra: Partial<ConnectConfig>, onetimePassword?: string | null, onetimeKeyId?: number | null): Promise<Client> {
     const secrets = sessionsRepo.getSecrets(session.id)
-    const config = this.buildConfig(tabId, session, secrets, extra)
+    const config = this.buildConfig(tabId, session, secrets, extra, onetimePassword, onetimeKeyId)
 
     return new Promise<Client>((resolve, reject) => {
       const client = new Client()
@@ -172,7 +229,9 @@ class SshServiceImpl {
     tabId: string,
     session: Session,
     secrets: { password: string | null; passphrase: string | null },
-    extra: Partial<ConnectConfig>
+    extra: Partial<ConnectConfig>,
+    onetimePassword?: string | null,
+    onetimeKeyId?: number | null
   ): ConnectConfig {
     const cfg: ConnectConfig = {
       host: session.host ?? undefined,
@@ -187,16 +246,16 @@ class SshServiceImpl {
       }) as any,
       ...extra
     }
-    // `compress` is supported by ssh2 at runtime but missing from some @types versions.
     if (session.compression) (cfg as any).compress = true
 
     switch (session.auth_type) {
       case 'password':
-        if (secrets.password) cfg.password = secrets.password
+        cfg.password = onetimePassword ?? secrets.password ?? undefined
         break
       case 'key': {
-        if (session.ssh_key_id) {
-          const pem = keysRepo.getPrivate(session.ssh_key_id)
+        const keyId = onetimeKeyId ?? session.ssh_key_id
+        if (keyId) {
+          const pem = keysRepo.getPrivate(keyId)
           if (!pem) throw new Error('Private key not found in vault')
           cfg.privateKey = pem
           if (secrets.passphrase) cfg.passphrase = secrets.passphrase
@@ -208,7 +267,6 @@ class SshServiceImpl {
         if (session.agent_forwarding) cfg.agentForward = true
         break
       case 'keyboard-interactive':
-        // handled by the keyboard-interactive event
         break
       case 'none':
       default:

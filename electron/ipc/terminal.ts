@@ -87,6 +87,10 @@ export function registerTerminalHandlers(): void {
     SshService.respondKbi(tabId, responses)
   })
 
+  on('terminal:credentials-respond', (tabId: string, response: any) => {
+    SshService.respondCredentials(tabId, response)
+  })
+
   handle<number | null>('terminal:latency', async (tabId: string) => {
     const backend = ConnectionManager.get(tabId)
     return backend?.latency ? backend.latency() : null
