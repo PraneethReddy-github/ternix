@@ -16,6 +16,11 @@ function fingerprintFromPublicSSH(pubSSH: Buffer): string {
   return 'SHA256:' + crypto.createHash('sha256').update(pubSSH).digest('base64').replace(/=+$/, '')
 }
 
+/** Heuristic: does this file body look like an SSH private key (any common format)? */
+function looksLikePrivateKey(pem: string): boolean {
+  return /PRIVATE KEY/.test(pem) || /^-----BEGIN OPENSSH/m.test(pem) || /^PuTTY-User-Key-File/m.test(pem)
+}
+
 /** SSH key vault: generate, import, deploy. Private keys are stored encrypted via keysRepo. */
 class KeyServiceImpl {
   generate(opts: KeyGenerateOptions): SshKey {
@@ -47,6 +52,58 @@ class KeyServiceImpl {
     const comment = key.comment || ''
     const publicKey = `${keyType} ${pubSSH.toString('base64')} ${comment}`.trim()
     return keysRepo.insert(name, keyType, publicKey, pem, fingerprint, comment)
+  }
+
+  /**
+   * Read a key file and report whether it looks like a private key, whether it
+   * is passphrase-protected, and its fingerprint (when parseable). Pure read —
+   * does not touch the vault. Returns null if the file is unreadable or isn't a key.
+   */
+  inspectKeyFile(absPath: string): { encrypted: boolean; fingerprint: string | null } | null {
+    let pem: string
+    try {
+      pem = readFileSync(absPath, 'utf8')
+    } catch {
+      return null
+    }
+    if (!looksLikePrivateKey(pem)) return null
+    const parsed = parseKey(pem)
+    const key = Array.isArray(parsed) ? parsed[0] : parsed
+    if (!key || key instanceof Error) return { encrypted: true, fingerprint: null } // looks like a key but won't parse → passphrase-protected
+    return { encrypted: false, fingerprint: fingerprintFromPublicSSH(key.getPublicSSH()) }
+  }
+
+  /**
+   * Ensure the key at `absPath` exists in the vault and return its id, deduping
+   * against existing keys (by fingerprint when parseable, otherwise by name).
+   * Returns null if the file can't be read or isn't a private key.
+   */
+  ensureKeyFromFile(absPath: string, name: string): { id: number; encrypted: boolean } | null {
+    let pem: string
+    try {
+      pem = readFileSync(absPath, 'utf8')
+    } catch {
+      return null
+    }
+    if (!looksLikePrivateKey(pem)) return null
+
+    const parsed = parseKey(pem)
+    const key = Array.isArray(parsed) ? parsed[0] : parsed
+    if (key && !(key instanceof Error)) {
+      const fingerprint = fingerprintFromPublicSSH(key.getPublicSSH())
+      const existing = keysRepo.findByFingerprint(fingerprint)
+      if (existing) return { id: existing.id, encrypted: false }
+      const pub = `${key.type} ${key.getPublicSSH().toString('base64')} ${key.comment || ''}`.trim()
+      const created = keysRepo.insert(name, key.type, pub, pem, fingerprint, key.comment || '')
+      return { id: created.id, encrypted: false }
+    }
+
+    // Passphrase-protected: store the raw PEM so it connects later (passphrase
+    // prompted at connect time). We can't fingerprint it, so dedupe by name.
+    const existing = keysRepo.findByName(name)
+    if (existing) return { id: existing.id, encrypted: true }
+    const created = keysRepo.insert(name, 'encrypted', '', pem, '', '')
+    return { id: created.id, encrypted: true }
   }
 
   /** Scan ~/.ssh for private keys and import any not already present. */

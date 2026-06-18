@@ -134,7 +134,8 @@ const api: TernixApi = {
   },
   importExport: {
     import: (source, payload) => invoke('importExport:import', source, payload),
-    commitImport: (sessions) => invoke('importExport:commitImport', sessions),
+    commitImport: (sessions, located) => invoke('importExport:commitImport', sessions, located),
+    inspectKey: (absPath) => invoke('importExport:inspectKey', absPath),
     export: (target, includeKeys, masterPassword) => invoke('importExport:export', target, includeKeys, masterPassword)
   },
   system: {

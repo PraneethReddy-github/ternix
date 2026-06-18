@@ -360,6 +360,16 @@ export const keysRepo = {
       .run(name, keyType, publicKey, CryptoService.encrypt(privatePem), fingerprint, comment)
     return db.prepare(`SELECT id, name, key_type, public_key, fingerprint, comment, created_at FROM ssh_keys WHERE id = ?`).get(info.lastInsertRowid) as SshKey
   },
+  findByFingerprint(fingerprint: string): SshKey | undefined {
+    return DatabaseService.get()
+      .prepare(`SELECT id, name, key_type, public_key, fingerprint, comment, created_at FROM ssh_keys WHERE fingerprint = ?`)
+      .get(fingerprint) as SshKey | undefined
+  },
+  findByName(name: string): SshKey | undefined {
+    return DatabaseService.get()
+      .prepare(`SELECT id, name, key_type, public_key, fingerprint, comment, created_at FROM ssh_keys WHERE name = ?`)
+      .get(name) as SshKey | undefined
+  },
   getPrivate(id: number): string | null {
     const r = DatabaseService.get().prepare(`SELECT private_key_enc FROM ssh_keys WHERE id = ?`).get(id) as { private_key_enc: Buffer } | undefined
     return r ? CryptoService.decrypt(r.private_key_enc) : null

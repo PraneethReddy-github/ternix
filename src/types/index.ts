@@ -83,6 +83,8 @@ export interface SessionInput extends Partial<Omit<Session, 'id' | 'hasPassword'
   vncPassword?: string | null
   clearPassword?: boolean
   clearPassphrase?: boolean
+  /** Transient (import only): the original SSH key file path, resolved to a vault key at commit time. Never persisted. */
+  importKeyPath?: string | null
 }
 
 export interface SshKey {
@@ -306,8 +308,18 @@ export interface TerminalTheme {
 export type ImportSource = 'putty' | 'winscp' | 'sshconfig' | 'csv' | 'ternix' | 'mobaxterm' | 'tabby'
 export type ExportTarget = 'ternix' | 'csv' | 'sshconfig' | 'mobaxterm' | 'tabby'
 
+/** A distinct SSH key file referenced by imported sessions, with its resolution status. */
+export interface ImportKeyRef {
+  path: string // original raw path from the foreign config (e.g. file://C:\Users\…\ubuntu24)
+  name: string // suggested vault name (the file's basename)
+  status: 'vault' | 'found' | 'missing' // already in vault | readable on disk | not found locally
+  encrypted?: boolean // key file is passphrase-protected (passphrase requested at connect time)
+  keyId?: number | null // vault key id when status === 'vault'
+}
+
 export interface ImportResult {
   imported: number
   skipped: number
   sessions: SessionInput[]
+  keyRefs?: ImportKeyRef[] // distinct key files referenced by the parsed sessions
 }

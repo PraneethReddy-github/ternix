@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { ImportSource, ExportTarget, ImportResult } from '@shared/index'
+import { Check, Download, FolderSearch, KeyRound } from 'lucide-react'
+import type { ImportSource, ExportTarget, ImportResult, ImportKeyRef } from '@shared/index'
 import { Modal, Field } from '@/components/ui/Modal'
 import { useUiStore } from '@/store/useUiStore'
 import { useSessionStore } from '@/store/useSessionStore'
@@ -30,6 +31,9 @@ export function ExportImportDialog({ onClose }: { onClose: () => void }) {
   const [source, setSource] = useState<ImportSource>('ternix')
   const [payload, setPayload] = useState('')
   const [preview, setPreview] = useState<ImportResult | null>(null)
+  // Phase 2: user-located key files for paths missing on this machine.
+  const [located, setLocated] = useState<Record<string, string>>({})
+  const [locatedEnc, setLocatedEnc] = useState<Record<string, boolean>>({})
 
   // export
   const [target, setTarget] = useState<ExportTarget>('ternix')
@@ -57,9 +61,32 @@ export function ExportImportDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const resetPreview = () => {
+    setPreview(null)
+    setLocated({})
+    setLocatedEnc({})
+  }
+
+  const locateKey = async (ref: ImportKeyRef) => {
+    const path = await window.ternix.system.selectFile()
+    if (!path) return
+    try {
+      const info = await window.ternix.importExport.inspectKey(path)
+      if (!info) {
+        notify("That file doesn't look like a private key", 'error')
+        return
+      }
+      setLocated((m) => ({ ...m, [ref.path]: path }))
+      setLocatedEnc((m) => ({ ...m, [ref.path]: info.encrypted }))
+      notify(`Located ${ref.name}`, 'success')
+    } catch (e: any) {
+      notify(e.message, 'error')
+    }
+  }
+
   const doCommit = async () => {
     if (!preview) return
-    const n = await window.ternix.importExport.commitImport(preview.sessions)
+    const n = await window.ternix.importExport.commitImport(preview.sessions, located)
     notify(`Imported ${n} session(s)`, 'success')
     await reload()
     onClose()
@@ -99,7 +126,7 @@ export function ExportImportDialog({ onClose }: { onClose: () => void }) {
         tab === 'import' ? (
           preview ? (
             <>
-              <button className="tx-btn-ghost border border-border" onClick={() => setPreview(null)}>Back</button>
+              <button className="tx-btn-ghost border border-border" onClick={resetPreview}>Back</button>
               <button className="tx-btn-primary" onClick={doCommit}>Import {preview.sessions.length} session(s)</button>
             </>
           ) : (
@@ -122,7 +149,7 @@ export function ExportImportDialog({ onClose }: { onClose: () => void }) {
         (preview ? (
           <div>
             <div className="text-[12px] text-muted mb-2">{preview.sessions.length} session(s) to import:</div>
-            <div className="max-h-64 overflow-y-auto space-y-1">
+            <div className="max-h-48 overflow-y-auto space-y-1">
               {preview.sessions.map((s, i) => (
                 <div key={i} className="flex items-center gap-2 text-[12px] rounded-input border border-border p-1.5">
                   <span className="px-1 rounded bg-surface-2 text-accent text-[10px] uppercase">{s.protocol}</span>
@@ -131,6 +158,7 @@ export function ExportImportDialog({ onClose }: { onClose: () => void }) {
                 </div>
               ))}
             </div>
+            <KeySection keyRefs={preview.keyRefs ?? []} located={located} locatedEnc={locatedEnc} onLocate={locateKey} />
           </div>
         ) : (
           <div>
@@ -163,5 +191,59 @@ export function ExportImportDialog({ onClose }: { onClose: () => void }) {
         </div>
       )}
     </Modal>
+  )
+}
+
+/**
+ * Shows the distinct SSH key files referenced by the import and where each one
+ * stands: already in the vault, readable on disk (will be imported once and
+ * linked to every session that uses it), or missing — in which case the user
+ * can locate it and it gets stored in the vault on import.
+ */
+function KeySection({
+  keyRefs,
+  located,
+  locatedEnc,
+  onLocate
+}: {
+  keyRefs: ImportKeyRef[]
+  located: Record<string, string>
+  locatedEnc: Record<string, boolean>
+  onLocate: (ref: ImportKeyRef) => void
+}) {
+  if (!keyRefs.length) return null
+
+  return (
+    <div className="mt-3 border-t border-border pt-3">
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted font-semibold mb-2">
+        <KeyRound size={12} /> SSH keys ({keyRefs.length})
+      </div>
+      <div className="max-h-40 overflow-y-auto space-y-1">
+        {keyRefs.map((ref) => {
+          const isLocated = !!located[ref.path]
+          const encrypted = isLocated ? locatedEnc[ref.path] : ref.encrypted
+          // Resolved = will end up linked: already vaulted, readable on disk, or located by the user.
+          const resolved = ref.status === 'vault' || ref.status === 'found' || isLocated
+          const label =
+            ref.status === 'vault' ? 'In vault' : isLocated ? 'Located — will import' : ref.status === 'found' ? 'Will import from disk' : 'Not found on this machine'
+          const Icon = ref.status === 'vault' ? Check : resolved ? Download : FolderSearch
+
+          return (
+            <div key={ref.path} className="flex items-center gap-2 text-[12px] rounded-input border border-border p-1.5">
+              <Icon size={13} className={resolved ? 'text-green-500 shrink-0' : 'text-amber-500 shrink-0'} />
+              <span className="text-text truncate" title={ref.path}>{ref.name}</span>
+              {encrypted && <span className="px-1 rounded bg-surface-2 text-muted text-[10px]">encrypted</span>}
+              <span className="ml-auto text-[11px] text-muted shrink-0">{label}</span>
+              {!resolved && (
+                <button className="text-[11px] text-accent shrink-0" onClick={() => onLocate(ref)}>Locate…</button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {keyRefs.some((r) => r.encrypted || locatedEnc[r.path]) && (
+        <p className="text-[11px] text-muted mt-2">Encrypted keys are stored as-is; their passphrase is requested when you connect.</p>
+      )}
+    </div>
   )
 }

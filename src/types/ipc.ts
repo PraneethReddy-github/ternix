@@ -146,7 +146,8 @@ export interface TernixApi {
   }
   importExport: {
     import(source: ImportSource, payload: string): Promise<ImportResult>
-    commitImport(sessions: SessionInput[]): Promise<number>
+    commitImport(sessions: SessionInput[], located?: Record<string, string>): Promise<number>
+    inspectKey(absPath: string): Promise<{ encrypted: boolean; fingerprint: string | null } | null>
     export(target: ExportTarget, includeKeys: boolean, masterPassword?: string): Promise<string>
   }
   system: {

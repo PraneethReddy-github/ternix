@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Plus, FolderPlus, ArrowDownUp, Search, Download } from 'lucide-react'
+import { Plus, FolderPlus, ArrowDownUp, Search, ArrowRightLeft } from 'lucide-react'
 import type { Group, Session } from '@shared/index'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useTabStore } from '@/store/useTabStore'
@@ -142,7 +142,7 @@ export function SessionTree() {
           <ArrowDownUp size={15} />
         </button>
         <button className="text-muted hover:text-text" title="Import / Export" onClick={() => openDialog({ kind: 'exportImport' })}>
-          <Download size={15} />
+          <ArrowRightLeft size={15} />
         </button>
       </PanelHeader>
 

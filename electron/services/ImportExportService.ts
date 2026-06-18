@@ -1,10 +1,21 @@
-import type { ImportResult, ImportSource, ExportTarget, SessionInput } from '@shared/index'
+import os from 'node:os'
+import { join } from 'node:path'
+import type { AuthType, ImportKeyRef, ImportResult, ImportSource, ExportTarget, SessionInput } from '@shared/index'
 import { sessionsRepo, groupsRepo, snippetsRepo, tunnelsRepo, keysRepo } from '../db/repo'
+import { KeyService } from './KeyService'
 import jsyaml from 'js-yaml'
 
 /** Parsing for foreign session formats and serialization of Ternix backups. */
 class ImportExportServiceImpl {
   parse(source: ImportSource, payload: string): ImportResult {
+    const result = this.parseSessions(source, payload)
+    // Surface the distinct key files referenced so the UI can show their status
+    // (in vault / will import from disk / not found) before the user commits.
+    result.keyRefs = this.keyRefsFor(result.sessions)
+    return result
+  }
+
+  private parseSessions(source: ImportSource, payload: string): ImportResult {
     switch (source) {
       case 'sshconfig':
         return this.fromSshConfig(payload)
@@ -25,36 +36,110 @@ class ImportExportServiceImpl {
     }
   }
 
-  commit(sessions: SessionInput[]): number {
+  /**
+   * @param located Optional map of original key path → user-located absolute path,
+   *   for keys whose original path doesn't exist on this machine (Phase 2 "Locate").
+   */
+  commit(sessions: SessionInput[], located: Record<string, string> = {}): number {
+    // Resolve each distinct referenced key file to a vault key id (deduped):
+    // read it once, import into the vault once, and reuse the id for every
+    // session that pointed at the same path.
+    const keyIdByPath = new Map<string, number | null>()
+    for (const s of sessions) {
+      const raw = s.importKeyPath
+      if (!raw || keyIdByPath.has(raw)) continue
+      keyIdByPath.set(raw, this.resolveKeyToVault(raw, located[raw]))
+    }
+
     let n = 0
     const existing = sessionsRepo.list()
     for (const s of sessions) {
+      const { importKeyPath, ...input } = s
+      if (importKeyPath) {
+        const keyId = keyIdByPath.get(importKeyPath) ?? null
+        if (keyId) input.ssh_key_id = keyId
+        else input.notes = [input.notes, `Requires key: ${importKeyPath}`].filter(Boolean).join('\n')
+      }
       const isDuplicate = existing.some(e =>
-        e.name === s.name &&
-        e.protocol === s.protocol &&
-        (e.host || '') === (s.host || '') &&
-        (e.username || '') === (s.username || '')
+        e.name === input.name &&
+        e.protocol === input.protocol &&
+        (e.host || '') === (input.host || '') &&
+        (e.username || '') === (input.username || '')
       )
       if (!isDuplicate) {
-        sessionsRepo.create(s)
+        sessionsRepo.create(input)
         n++
       }
     }
     return n
   }
 
-  private resolveKey(keyPath?: string): { auth_type: 'key' | 'password' | 'agent'; ssh_key_id?: number | null; notes?: string } {
-    if (!keyPath) return { auth_type: 'password' }
-    
-    const filename = keyPath.split(/[/\\]/).pop() || keyPath
-    const keys = keysRepo.list()
-    const match = keys.find((k) => k.name === filename || k.name === keyPath)
-    
-    if (match) {
-      return { auth_type: 'key', ssh_key_id: match.id, notes: `Auto-linked to vault key: ${match.name}` }
+  /** Inspect a located key file (Phase 2) so the UI can update its status after the user picks it. */
+  inspectKey(absPath: string): { encrypted: boolean; fingerprint: string | null } | null {
+    return KeyService.inspectKeyFile(absPath)
+  }
+
+  /** Auth fields for a parsed session: a key path defers vault resolution to commit time. */
+  private keyFields(keyPath: string | undefined, fallback: AuthType = 'password'): { auth_type: AuthType; importKeyPath?: string } {
+    if (!keyPath) return { auth_type: fallback }
+    return { auth_type: 'key', importKeyPath: keyPath }
+  }
+
+  /** Strip a `file://` scheme and expand a leading `~` so the path can be read locally. */
+  private normalizeKeyPath(raw: string): string {
+    let p = raw.trim()
+    if (p.startsWith('file://')) {
+      p = p.slice('file://'.length)
+      try {
+        p = decodeURIComponent(p)
+      } catch {
+        /* leave undecoded */
+      }
     }
-    
-    return { auth_type: 'key', ssh_key_id: null, notes: `Requires Key: ${keyPath}` }
+    if (p === '~' || p.startsWith('~/') || p.startsWith('~\\')) p = join(os.homedir(), p.slice(1))
+    return p
+  }
+
+  /** The basename of a key path, used as the vault key's display name. */
+  private keyName(raw: string): string {
+    const cleaned = raw.replace(/^file:\/\//, '').replace(/[/\\]+$/, '')
+    return cleaned.split(/[/\\]/).pop() || cleaned
+  }
+
+  /** Build the distinct list of referenced key files with their resolution status. */
+  private keyRefsFor(sessions: SessionInput[]): ImportKeyRef[] {
+    const seen = new Set<string>()
+    const refs: ImportKeyRef[] = []
+    for (const s of sessions) {
+      const raw = s.importKeyPath
+      if (!raw || seen.has(raw)) continue
+      seen.add(raw)
+      refs.push(this.inspectKeyRef(raw))
+    }
+    return refs
+  }
+
+  private inspectKeyRef(raw: string): ImportKeyRef {
+    const name = this.keyName(raw)
+    const inspected = KeyService.inspectKeyFile(this.normalizeKeyPath(raw))
+    if (inspected) {
+      const match = inspected.fingerprint ? keysRepo.findByFingerprint(inspected.fingerprint) : keysRepo.findByName(name)
+      if (match) return { path: raw, name, status: 'vault', keyId: match.id, encrypted: inspected.encrypted }
+      return { path: raw, name, status: 'found', encrypted: inspected.encrypted }
+    }
+    // Not readable on this machine — reuse a same-named vault key if one exists.
+    const byName = keysRepo.findByName(name)
+    if (byName) return { path: raw, name, status: 'vault', keyId: byName.id }
+    return { path: raw, name, status: 'missing' }
+  }
+
+  /** Read a referenced key file into the vault (deduped) and return its id, or null if unreadable. */
+  private resolveKeyToVault(raw: string, locatedAbs?: string): number | null {
+    const name = this.keyName(raw)
+    const abs = locatedAbs || this.normalizeKeyPath(raw)
+    const res = KeyService.ensureKeyFromFile(abs, name)
+    if (res) return res.id
+    return keysRepo.findByName(name)?.id ?? null
   }
 
   // ---- OpenSSH config ----
@@ -86,10 +171,8 @@ class ImportExportServiceImpl {
             current.username = value
             break
           case 'identityfile': {
-            const resolved = this.resolveKey(value)
-            current.auth_type = resolved.auth_type
-            if (resolved.ssh_key_id) current.ssh_key_id = resolved.ssh_key_id
-            current.notes = resolved.notes
+            current.auth_type = 'key'
+            current.importKeyPath = value
             break
           }
           case 'proxyjump':
@@ -121,17 +204,16 @@ class ImportExportServiceImpl {
       }
       const proto = (get('Protocol') || 'ssh').toLowerCase()
       const keyFile = get('PublicKeyFile')
-      const resolved = this.resolveKey(keyFile)
-      
+      const kf = this.keyFields(keyFile)
+
       sessions.push({
         name,
         protocol: proto === 'serial' ? 'serial' : proto === 'telnet' ? 'telnet' : 'ssh',
         host: get('HostName') || '',
         port: getDword('PortNumber') ?? (proto === 'telnet' ? 23 : 22),
         username: get('UserName'),
-        auth_type: resolved.auth_type,
-        ssh_key_id: resolved.ssh_key_id,
-        notes: resolved.notes
+        auth_type: kf.auth_type,
+        importKeyPath: kf.importKeyPath
       })
     }
     return { imported: 0, skipped: 0, sessions }
@@ -147,17 +229,16 @@ class ImportExportServiceImpl {
       const name = decodeURIComponent(nameMatch[1].replace(/%2F/gi, '/'))
       const get = (k: string): string | undefined => section.match(new RegExp(`^${k}=(.*)$`, 'im'))?.[1]?.trim()
       const keyFile = get('PublicKeyFile')
-      const resolved = this.resolveKey(keyFile)
-      
+      const kf = this.keyFields(keyFile)
+
       sessions.push({
         name,
         protocol: 'ssh',
         host: get('HostName') || '',
         port: parseInt(get('PortNumber') || '22', 10),
         username: get('UserName'),
-        auth_type: resolved.auth_type,
-        ssh_key_id: resolved.ssh_key_id,
-        notes: resolved.notes
+        auth_type: kf.auth_type,
+        importKeyPath: kf.importKeyPath
       })
     }
     return { imported: 0, skipped: 0, sessions }
@@ -222,17 +303,16 @@ class ImportExportServiceImpl {
         const username = parts[3] || ''
         
         const keyFile = parts.find((p) => p.toLowerCase().endsWith('.ppk') || p.toLowerCase().endsWith('.pem') || p.includes('.ssh/'))
-        const resolved = this.resolveKey(keyFile)
-        
+        const kf = this.keyFields(keyFile)
+
         sessions.push({
           name,
           protocol: port === 23 ? 'telnet' : port === 3389 ? 'rdp' : 'ssh',
           host,
           port,
           username,
-          auth_type: resolved.auth_type,
-          ssh_key_id: resolved.ssh_key_id,
-          notes: resolved.notes
+          auth_type: kf.auth_type,
+          importKeyPath: kf.importKeyPath
         })
       }
     }
@@ -250,17 +330,18 @@ class ImportExportServiceImpl {
           
           if (profile.type === 'ssh') {
             const keyFile = profile.options.privateKeys?.length ? profile.options.privateKeys[0] : undefined
-            const resolved = this.resolveKey(keyFile)
-            
+            // Honor an explicit non-key auth mode (e.g. agent) when there's no key file.
+            const fallback: AuthType = profile.options.auth === 'agent' ? 'agent' : 'password'
+            const kf = this.keyFields(keyFile, fallback)
+
             sessions.push({
               name: profile.name || profile.options.host,
               protocol: 'ssh',
               host: profile.options.host || '',
               port: profile.options.port || 22,
               username: profile.options.user || '',
-              auth_type: resolved.auth_type,
-              ssh_key_id: resolved.ssh_key_id,
-              notes: resolved.notes
+              auth_type: kf.auth_type,
+              importKeyPath: kf.importKeyPath
             })
           } else if (profile.type === 'local') {
             sessions.push({

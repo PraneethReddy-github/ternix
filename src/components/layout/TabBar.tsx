@@ -43,18 +43,18 @@ export function TabBar() {
             onDrop={() => dragId.current && dragId.current !== tab.id && reorderTab(dragId.current, tab.id)}
           />
         ))}
+        <button
+          className="px-3 text-muted hover:text-text hover:bg-surface-2 border-r border-border"
+          title="New tab"
+          onClick={() => {
+            const proto = window.localStorage.getItem('tx.newTabProtocol')
+            if (proto === 'ssh') openDialog({ kind: 'newSession' })
+            else newTab({ protocol: 'local', title: 'Local Shell' })
+          }}
+        >
+          <Plus size={16} />
+        </button>
       </div>
-      <button
-        className="px-3 text-muted hover:text-text hover:bg-surface-2 border-l border-border"
-        title="New tab"
-        onClick={() => {
-          const proto = window.localStorage.getItem('tx.newTabProtocol')
-          if (proto === 'ssh') openDialog({ kind: 'newSession' })
-          else newTab({ protocol: 'local', title: 'Local Shell' })
-        }}
-      >
-        <Plus size={16} />
-      </button>
       {element}
     </div>
   )

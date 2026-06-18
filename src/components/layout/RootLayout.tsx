@@ -42,11 +42,14 @@ export function RootLayout() {
       <TitleBar />
       <div className="flex-1 flex min-h-0">
         <ActivityBar />
-        {activeView === 'settings' ? (
-          <SettingsPanel />
-        ) : (
+        {/* Keep the terminal area mounted at all times — hide it behind the
+            settings view rather than unmounting it. Unmounting would tear down
+            every pane's xterm instance and kill its PTY, losing all session
+            state when the user returns from settings. */}
+        <div className="flex-1 flex min-h-0" style={{ display: activeView === 'settings' ? 'none' : 'flex' }}>
           <Content collapsed={collapsed} sidebarWidth={sidebarWidth} onDragStart={onDragStart} />
-        )}
+        </div>
+        {activeView === 'settings' && <SettingsPanel />}
       </div>
       <StatusBar />
       <BroadcastBar />

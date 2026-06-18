@@ -1,9 +1,16 @@
 import { create } from 'zustand'
 import type { Protocol } from '@shared/index'
-import type { Tab, Pane, ConnState, PaneLayout } from '@shared/ui'
+import type { Tab, Pane, ConnState, LayoutRows } from '@shared/ui'
+import { useSftpStore } from './useSftpStore'
 
 function uuid(): string {
   return crypto.randomUUID()
+}
+
+/** Kill a pane's backend connection and drop any SFTP state tied to it. */
+function killPane(paneId: string): void {
+  window.ternix.terminal.kill(paneId).catch(() => {})
+  useSftpStore.getState().clearRemotePath(paneId)
 }
 
 interface NewTabOpts {
@@ -56,10 +63,47 @@ function makePane(opts?: NewTabOpts): Pane {
   }
 }
 
-function layoutFor(count: number): PaneLayout {
-  if (count <= 1) return 'single'
-  if (count === 2) return 'h'
-  return 'grid'
+/** Upper bound on panes per tab. */
+const MAX_PANES = 6
+const MAX_ROWS = 2
+const MAX_COLS = 3
+
+/** Locate a pane in the row/column grid. Returns [-1, -1] if absent. */
+function findPane(rows: LayoutRows, id: string): [number, number] {
+  for (let r = 0; r < rows.length; r++) {
+    const c = rows[r].indexOf(id)
+    if (c !== -1) return [r, c]
+  }
+  return [-1, -1]
+}
+
+/**
+ * Insert `newId` relative to `activeId`:
+ *  - 'h' (split right): add it as a new column immediately right of the active pane, in the same row.
+ *  - 'v' (split down): add it as a new full-width row immediately below the active pane's row.
+ * Falls back to appending a bottom row if the active pane can't be found.
+ */
+function insertPane(rows: LayoutRows, activeId: string, newId: string, dir: 'h' | 'v'): LayoutRows | null {
+  const [r, c] = findPane(rows, activeId)
+  if (r !== -1) {
+    if (dir === 'h' && rows[r].length >= MAX_COLS) return null
+    if (dir === 'v' && rows.length >= MAX_ROWS) return null
+  }
+
+  const next = rows.map((row) => [...row])
+  if (r === -1) {
+    next.push([newId])
+  } else if (dir === 'h') {
+    next[r].splice(c + 1, 0, newId)
+  } else {
+    next.splice(r + 1, 0, [newId])
+  }
+  return next
+}
+
+/** Drop a pane and collapse any row left empty. */
+function removePane(rows: LayoutRows, id: string): LayoutRows {
+  return rows.map((row) => row.filter((p) => p !== id)).filter((row) => row.length > 0)
 }
 
 export const useTabStore = create<TabState>((set, get) => ({
@@ -73,7 +117,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       id: uuid(),
       title: opts?.title ?? 'Local Shell',
       color: opts?.color ?? null,
-      layout: 'single',
+      layout: [[pane.id]],
       panes: [pane],
       activePaneId: pane.id,
       broadcast: false
@@ -84,7 +128,7 @@ export const useTabStore = create<TabState>((set, get) => ({
 
   closeTab: (tabId) => {
     const tab = get().tabs.find((t) => t.id === tabId)
-    if (tab) for (const p of tab.panes) window.ternix.terminal.kill(p.id).catch(() => {})
+    if (tab) for (const p of tab.panes) killPane(p.id)
     set((s) => {
       const tabs = s.tabs.filter((t) => t.id !== tabId)
       let activeTabId = s.activeTabId
@@ -94,14 +138,14 @@ export const useTabStore = create<TabState>((set, get) => ({
   },
 
   closeOtherTabs: (tabId) => {
-    for (const t of get().tabs) if (t.id !== tabId) for (const p of t.panes) window.ternix.terminal.kill(p.id).catch(() => {})
+    for (const t of get().tabs) if (t.id !== tabId) for (const p of t.panes) killPane(p.id)
     set((s) => ({ tabs: s.tabs.filter((t) => t.id === tabId), activeTabId: tabId }))
   },
 
   closeTabsToRight: (tabId) => {
     const idx = get().tabs.findIndex((t) => t.id === tabId)
     const toClose = get().tabs.slice(idx + 1)
-    for (const t of toClose) for (const p of t.panes) window.ternix.terminal.kill(p.id).catch(() => {})
+    for (const t of toClose) for (const p of t.panes) killPane(p.id)
     set((s) => ({ tabs: s.tabs.slice(0, idx + 1) }))
   },
 
@@ -140,16 +184,17 @@ export const useTabStore = create<TabState>((set, get) => ({
   splitPane: (tabId, dir) =>
     set((s) => ({
       tabs: s.tabs.map((t) => {
-        if (t.id !== tabId || t.panes.length >= 4) return t
+        if (t.id !== tabId || t.panes.length >= MAX_PANES) return t
         const active = t.panes.find((p) => p.id === t.activePaneId)
         const pane = makePane({ sessionId: active?.sessionId, protocol: active?.protocol, title: active?.title, host: active?.host })
-        const panes = [...t.panes, pane]
-        return { ...t, panes, activePaneId: pane.id, layout: panes.length === 2 ? dir : layoutFor(panes.length) }
+        const layout = insertPane(t.layout, t.activePaneId, pane.id, dir)
+        if (!layout) return t
+        return { ...t, panes: [...t.panes, pane], activePaneId: pane.id, layout }
       })
     })),
 
   closePane: (tabId, paneId) => {
-    window.ternix.terminal.kill(paneId).catch(() => {})
+    killPane(paneId)
     const tab = get().tabs.find((t) => t.id === tabId)
     if (tab && tab.panes.length === 1) {
       get().closeTab(tabId)
@@ -159,7 +204,9 @@ export const useTabStore = create<TabState>((set, get) => ({
       tabs: s.tabs.map((t) => {
         if (t.id !== tabId) return t
         const panes = t.panes.filter((p) => p.id !== paneId)
-        return { ...t, panes, activePaneId: panes[0]?.id ?? t.activePaneId, layout: layoutFor(panes.length) }
+        const layout = removePane(t.layout, paneId)
+        const activePaneId = t.activePaneId === paneId ? (panes[0]?.id ?? t.activePaneId) : t.activePaneId
+        return { ...t, panes, activePaneId, layout }
       })
     }))
   },

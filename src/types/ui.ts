@@ -14,14 +14,23 @@ export interface Pane {
   recording: boolean
 }
 
-export type PaneLayout = 'single' | 'h' | 'v' | 'grid'
+/**
+ * Tiling layout: a top-to-bottom stack of rows, where each row is a
+ * left-to-right list of pane ids (the columns in that row). All rows share the
+ * height equally; within a row, columns share the width equally.
+ *
+ * e.g. `[['a', 'b'], ['c']]` renders panes `a | b` on top and a full-width `c`
+ * below — so a "split down" after a "split right" gives the new pane the whole
+ * width beneath the existing pair rather than a single quadrant.
+ */
+export type LayoutRows = string[][]
 
-/** A UI tab that hosts 1–4 panes in a split layout. */
+/** A UI tab that hosts panes in a tiled split layout. */
 export interface Tab {
   id: string
   title: string
   color: string | null
-  layout: PaneLayout
+  layout: LayoutRows
   panes: Pane[]
   activePaneId: string
   broadcast: boolean
