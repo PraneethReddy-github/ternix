@@ -1,0 +1,41 @@
+import type { TerminalTheme } from '@shared/index'
+
+export const lightDefault: TerminalTheme = {
+  id: 'light-default',
+  name: 'Default Light',
+  type: 'light',
+  background: '#ffffff',
+  foreground: '#1f2328',
+  cursor: '#0969da',
+  cursorAccent: '#ffffff',
+  selectionBackground: '#b6e3ff',
+  black: '#24292f',
+  red: '#cf222e',
+  green: '#116329',
+  yellow: '#4d2d00',
+  blue: '#0969da',
+  magenta: '#8250df',
+  cyan: '#1b7c83',
+  white: '#6e7781',
+  brightBlack: '#57606a',
+  brightRed: '#a40e26',
+  brightGreen: '#1a7f37',
+  brightYellow: '#633c01',
+  brightBlue: '#218bff',
+  brightMagenta: '#a475f9',
+  brightCyan: '#3192aa',
+  brightWhite: '#8c959f',
+  ui: {
+    bg: '#ffffff',
+    surface: '#f6f8fa',
+    surface2: '#eaeef2',
+    border: '#d0d7de',
+    accent: '#0969da',
+    accentMuted: '#218bff',
+    text: '#1f2328',
+    muted: '#656d76',
+    success: '#1a7f37',
+    warning: '#9a6700',
+    danger: '#cf222e'
+  }
+}

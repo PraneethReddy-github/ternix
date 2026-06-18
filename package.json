@@ -1,0 +1,75 @@
+{
+  "name": "ternix",
+  "version": "0.1.0",
+  "description": "Ternix — the last terminal you will ever need. A modern SSH/remote session manager.",
+  "homepage": "https://github.com/ternix/ternix",
+  "author": "Ternix",
+  "license": "MIT",
+  "main": "out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev -- --no-sandbox",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "postinstall": "electron-builder install-app-deps",
+    "build:win": "electron-vite build && electron-builder --win -c.directories.output=dist-electron/win",
+    "build:mac": "electron-vite build && electron-builder --mac -c.directories.output=dist-electron/mac",
+    "build:linux": "electron-vite build && electron-builder --linux -c.directories.output=dist-electron/linux",
+    "package": "electron-vite build && electron-builder",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "rebuild": "electron-rebuild -f -w better-sqlite3,node-pty,serialport"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-search": "^0.15.0",
+    "@xterm/addon-unicode11": "^0.8.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/addon-webgl": "^0.18.0",
+    "@xterm/xterm": "^5.5.0",
+    "better-sqlite3": "^11.8.1",
+    "js-yaml": "^4.2.0",
+    "keytar": "^7.9.0",
+    "lucide-react": "^0.469.0",
+    "node-pty": "^1.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "serialport": "^12.0.0",
+    "ssh2": "^1.16.0",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.7",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/ssh2": "^1.15.1",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "vite": "^5.4.14"
+  },
+  "optionalDependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "@electron/rebuild": {
+    "onlyModules": [
+      "better-sqlite3",
+      "node-pty",
+      "serialport",
+      "keytar"
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "appId": "dev.ternix.app",
+  "productName": "Ternix",
+  "directories": { "output": "dist-electron", "buildResources": "resources" },
+  "files": ["out/**/*", "resources/**/*"],
+  "asarUnpack": ["**/node_modules/{better-sqlite3,node-pty,serialport,keytar}/**/*"],
+  "npmRebuild": true,
+  "win": {
+    "target": ["nsis", "portable"],
+    "icon": "resources/icon.ico"
+  },
+  "mac": {
+    "target": ["dmg", "zip"],
+    "icon": "resources/icon.icns",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "resources/entitlements.mac.plist",
+    "entitlementsInherit": "resources/entitlements.mac.plist"
+  },
+  "linux": {
+    "target": ["AppImage", "deb"],
+    "icon": "resources/icons",
+    "executableArgs": ["--no-sandbox"],
+    "category": "Utility",
+    "maintainer": "Ternix"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  },
+  "publish": null
+}

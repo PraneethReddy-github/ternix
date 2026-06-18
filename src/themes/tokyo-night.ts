@@ -1,0 +1,41 @@
+import type { TerminalTheme } from '@shared/index'
+
+export const tokyoNight: TerminalTheme = {
+  id: 'tokyo-night',
+  name: 'Tokyo Night',
+  type: 'dark',
+  background: '#1a1b26',
+  foreground: '#c0caf5',
+  cursor: '#c0caf5',
+  cursorAccent: '#1a1b26',
+  selectionBackground: '#33467c',
+  black: '#15161e',
+  red: '#f7768e',
+  green: '#9ece6a',
+  yellow: '#e0af68',
+  blue: '#7aa2f7',
+  magenta: '#bb9af7',
+  cyan: '#7dcfff',
+  white: '#a9b1d6',
+  brightBlack: '#414868',
+  brightRed: '#ff899d',
+  brightGreen: '#9fe044',
+  brightYellow: '#faba4a',
+  brightBlue: '#8db0ff',
+  brightMagenta: '#c7a9ff',
+  brightCyan: '#a4daff',
+  brightWhite: '#c0caf5',
+  ui: {
+    bg: '#1a1b26',
+    surface: '#16161e',
+    surface2: '#1f2335',
+    border: '#2a2e42',
+    accent: '#7aa2f7',
+    accentMuted: '#3d59a1',
+    text: '#c0caf5',
+    muted: '#565f89',
+    success: '#9ece6a',
+    warning: '#e0af68',
+    danger: '#f7768e'
+  }
+}

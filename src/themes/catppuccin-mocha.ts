@@ -1,0 +1,41 @@
+import type { TerminalTheme } from '@shared/index'
+
+export const catppuccinMocha: TerminalTheme = {
+  id: 'catppuccin-mocha',
+  name: 'Catppuccin Mocha',
+  type: 'dark',
+  background: '#1e1e2e',
+  foreground: '#cdd6f4',
+  cursor: '#f5e0dc',
+  cursorAccent: '#1e1e2e',
+  selectionBackground: '#414458',
+  black: '#45475a',
+  red: '#f38ba8',
+  green: '#a6e3a1',
+  yellow: '#f9e2af',
+  blue: '#89b4fa',
+  magenta: '#f5c2e7',
+  cyan: '#94e2d5',
+  white: '#bac2de',
+  brightBlack: '#585b70',
+  brightRed: '#f38ba8',
+  brightGreen: '#a6e3a1',
+  brightYellow: '#f9e2af',
+  brightBlue: '#89b4fa',
+  brightMagenta: '#f5c2e7',
+  brightCyan: '#94e2d5',
+  brightWhite: '#a6adc8',
+  ui: {
+    bg: '#1e1e2e',
+    surface: '#181825',
+    surface2: '#313244',
+    border: '#45475a',
+    accent: '#89b4fa',
+    accentMuted: '#74c7ec',
+    text: '#cdd6f4',
+    muted: '#7f849c',
+    success: '#a6e3a1',
+    warning: '#f9e2af',
+    danger: '#f38ba8'
+  }
+}

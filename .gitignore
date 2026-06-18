@@ -1,0 +1,8 @@
+node_modules
+sharp_runner/node_modules
+dist
+dist-electron
+out
+release
+.DS_Store
+*.log

@@ -1,0 +1,41 @@
+import type { TerminalTheme } from '@shared/index'
+
+export const oneDarkPro: TerminalTheme = {
+  id: 'one-dark-pro',
+  name: 'One Dark Pro',
+  type: 'dark',
+  background: '#282c34',
+  foreground: '#abb2bf',
+  cursor: '#528bff',
+  cursorAccent: '#282c34',
+  selectionBackground: '#3e4451',
+  black: '#3f4451',
+  red: '#e06c75',
+  green: '#98c379',
+  yellow: '#e5c07b',
+  blue: '#61afef',
+  magenta: '#c678dd',
+  cyan: '#56b6c2',
+  white: '#abb2bf',
+  brightBlack: '#4f5666',
+  brightRed: '#ff616e',
+  brightGreen: '#a5e075',
+  brightYellow: '#f0a45d',
+  brightBlue: '#61afef',
+  brightMagenta: '#de73ff',
+  brightCyan: '#56b6c2',
+  brightWhite: '#e6e6e6',
+  ui: {
+    bg: '#282c34',
+    surface: '#21252b',
+    surface2: '#2c313a',
+    border: '#3a3f4b',
+    accent: '#61afef',
+    accentMuted: '#3b6ea5',
+    text: '#abb2bf',
+    muted: '#5c6370',
+    success: '#98c379',
+    warning: '#e5c07b',
+    danger: '#e06c75'
+  }
+}
