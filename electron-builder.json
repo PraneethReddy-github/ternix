@@ -28,5 +28,9 @@
     "oneClick": false,
     "allowToChangeInstallationDirectory": true
   },
-  "publish": null
+  "publish": {
+    "provider": "github",
+    "owner": "PraneethReddy-github",
+    "repo": "ternix"
+  }
 }
