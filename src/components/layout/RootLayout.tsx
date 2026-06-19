@@ -80,7 +80,7 @@ function Content({
           <div className="w-1 cursor-col-resize hover:bg-accent/50 bg-border/40" onMouseDown={onDragStart} />
         </>
       )}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <TabBar />
         <div className="flex-1 min-h-0">
           <TerminalArea />

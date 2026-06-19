@@ -43,6 +43,7 @@ body {
 .drag-region {
   -webkit-app-region: drag;
 }
+
 .no-drag {
   -webkit-app-region: no-drag;
 }
@@ -52,15 +53,35 @@ body {
   width: 10px;
   height: 10px;
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--tx-border);
   border-radius: 5px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--tx-muted);
 }
+
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+.tx-tabstrip {
+  scrollbar-width: thin;
+}
+
+.tx-tabstrip::-webkit-scrollbar {
+  height: 3px;
+}
+
+.tx-tabstrip::-webkit-scrollbar-thumb {
+  background: var(--tx-border);
+  border-radius: 3px;
+}
+
+.tx-tabstrip:hover::-webkit-scrollbar-thumb {
+  background: var(--tx-muted);
 }
 
 input,
@@ -68,6 +89,7 @@ textarea,
 select {
   font-family: inherit;
 }
+
 input:focus,
 textarea:focus,
 select:focus {
@@ -75,14 +97,17 @@ select:focus {
 }
 
 @keyframes tx-pulse {
+
   0%,
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.35;
   }
 }
+
 .tx-pulse {
   animation: tx-pulse 1.4s ease-in-out infinite;
 }
@@ -92,6 +117,7 @@ select:focus {
     transform: rotate(360deg);
   }
 }
+
 .tx-spin {
   animation: tx-spin 0.8s linear infinite;
 }
@@ -99,24 +125,31 @@ select:focus {
 .tx-input {
   @apply w-full bg-bg border border-border rounded-input px-2.5 py-1.5 text-text text-[13px];
 }
+
 .tx-input:focus {
   border-color: var(--tx-accent);
 }
+
 .tx-btn {
   @apply inline-flex items-center gap-1.5 rounded-input px-3 py-1.5 text-[13px] transition-colors no-drag;
 }
+
 .tx-btn-primary {
   @apply tx-btn bg-accent text-white;
 }
+
 .tx-btn-primary:hover {
   background: var(--tx-accent-muted);
 }
+
 .tx-btn-ghost {
   @apply tx-btn text-muted;
 }
+
 .tx-btn-ghost:hover {
   @apply bg-surface-2 text-text;
 }
+
 .tx-btn-danger {
   @apply tx-btn bg-danger text-white;
 }
