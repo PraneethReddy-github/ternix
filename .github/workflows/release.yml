@@ -129,3 +129,29 @@ jobs:
           files: release-assets/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────
+  #  Deploy download website to Firebase Hosting
+  #  Runs after release is published so the site
+  #  is always in sync with the latest version.
+  #  The JS on the page fetches /releases/latest
+  #  from the GitHub API — so even without a
+  #  redeploy, new versions appear automatically.
+  #  This job re-deploys to pick up any website
+  #  source changes bundled with the release.
+  # ─────────────────────────────────────────────
+  deploy-website:
+    name: Deploy Website · Firebase
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TERNIX_DEV }}
+          channelId: live
+          projectId: ternix-dev

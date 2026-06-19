@@ -11,10 +11,8 @@ import { registerAllIpc } from './ipc'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// Disable sandbox on Linux to prevent AppArmor/SUID crashes on modern distros (Ubuntu 24.04+)
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('no-sandbox')
-  app.commandLine.appendSwitch('disable-gpu')
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -35,7 +33,9 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      // sandbox must be false when --no-sandbox is active (Linux); on Windows/macOS
+      // Electron's own sandbox is used instead of the SUID helper.
+      sandbox: process.platform !== 'linux',
       webviewTag: false,
       spellcheck: false
     }

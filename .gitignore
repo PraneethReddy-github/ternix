@@ -6,3 +6,5 @@ out
 release
 .DS_Store
 *.log
+# Firebase local cache
+.firebase/
