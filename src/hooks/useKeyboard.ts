@@ -45,6 +45,8 @@ function comboFromEvent(e: KeyboardEvent): string {
   return parts.join('+')
 }
 
+import { paneActions } from './terminalRegistry'
+
 export function loadKeybindings(): KeyBinding[] {
   const raw = useSettingsStore.getState().get('keybindings')
   if (!raw) return DEFAULT_KEYBINDINGS
@@ -65,6 +67,14 @@ export function useKeyboard(onAction: (action: string) => void) {
       const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA'
       const combo = comboFromEvent(e)
       const bindings = loadKeybindings()
+
+      // Auto-focus terminal if typing while focus is lost (e.g. on body)
+      if (!typing && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const activePaneId = useTabStore.getState().getActivePane()?.id
+        if (activePaneId) {
+          paneActions(activePaneId)?.focus()
+        }
+      }
 
       // Ctrl+1..9 → go to tab N.
       if ((e.ctrlKey || e.metaKey) && /^[1-9]$/.test(e.key)) {

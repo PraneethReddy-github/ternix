@@ -121,24 +121,47 @@ export function useTerminal(pane: Pane): TerminalController {
     const offStatus = window.ternix.terminal.onStatus(pane.id, ({ state, message }) =>
       setPaneState(pane.id, state as any, message)
     )
+    const spawnConnection = () => {
+      window.ternix.terminal
+        .spawn({ tabId: pane.id, sessionId: pane.sessionId, cols: term.cols, rows: term.rows })
+        .then((res) => {
+          if (!res.ok) {
+            term.writeln(`\r\n\x1b[31m${res.error ?? 'Connection failed'}\x1b[0m`)
+            term.writeln(`\x1b[90m[ Press Ctrl+R to reconnect ]\x1b[0m`)
+            setPaneState(pane.id, 'error', res.error)
+          }
+        })
+        .catch((err) => {
+          term.writeln(`\r\n\x1b[31m${err.message}\x1b[0m`)
+          term.writeln(`\x1b[90m[ Press Ctrl+R to reconnect ]\x1b[0m`)
+          setPaneState(pane.id, 'error', err.message)
+        })
+    }
+
     const offExit = window.ternix.terminal.onExit(pane.id, ({ reason }) => {
       term.writeln(`\r\n\x1b[90m[ ${reason ?? 'disconnected'} ]\x1b[0m`)
+      term.writeln(`\x1b[90m[ Press Ctrl+R to reconnect ]\x1b[0m`)
       setPaneState(pane.id, 'disconnected', reason)
     })
 
-    // Spawn the connection.
-    window.ternix.terminal
-      .spawn({ tabId: pane.id, sessionId: pane.sessionId, cols: term.cols, rows: term.rows })
-      .then((res) => {
-        if (!res.ok) {
-          term.writeln(`\r\n\x1b[31m${res.error ?? 'Connection failed'}\x1b[0m`)
-          setPaneState(pane.id, 'error', res.error)
+    term.onKey(({ key, domEvent }) => {
+      if (domEvent.ctrlKey && domEvent.key.toLowerCase() === 'r') {
+        const tabs = useTabStore.getState().tabs
+        let state: string | undefined
+        for (const t of tabs) {
+          const p = t.panes.find(x => x.id === pane.id)
+          if (p) { state = p.state; break; }
         }
-      })
-      .catch((err) => {
-        term.writeln(`\r\n\x1b[31m${err.message}\x1b[0m`)
-        setPaneState(pane.id, 'error', err.message)
-      })
+        if (state === 'disconnected' || state === 'error') {
+          term.clear()
+          setPaneState(pane.id, 'connecting')
+          spawnConnection()
+        }
+      }
+    })
+
+    // Spawn the connection.
+    spawnConnection()
 
     // Resize handling → fit + notify backend.
     const ro = new ResizeObserver(() => {

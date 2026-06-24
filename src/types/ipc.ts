@@ -160,6 +160,7 @@ export interface TernixApi {
     saveFile(defaultName: string, content: string): Promise<string | null>
     readClipboard(): Promise<string>
     writeClipboard(text: string): Promise<void>
+    writeClipboardHtml(html: string, text: string): Promise<void>
     platform(): Promise<NodeJS.Platform>
     version(): Promise<string>
   }

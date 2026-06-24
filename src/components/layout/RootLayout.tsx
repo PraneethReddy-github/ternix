@@ -13,6 +13,7 @@ import { Toast } from './Toast'
 import { SettingsPanel } from '@/components/settings/SettingsPanel'
 import { useUiStore } from '@/store/useUiStore'
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts'
+import { StatsPoller } from '@/components/layout/StatsPoller'
 
 export function RootLayout() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed)
@@ -56,6 +57,7 @@ export function RootLayout() {
       <CommandPalette />
       <DialogHost />
       <GlobalPrompts />
+      <StatsPoller />
       <Toast />
     </div>
   )

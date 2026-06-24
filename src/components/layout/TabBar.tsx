@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTabStore } from '@/store/useTabStore'
+import { useSessionStore } from '@/store/useSessionStore'
 import { useUiStore } from '@/store/useUiStore'
 import { useContextMenu } from '@/components/ui/ContextMenu'
 import { ProtocolIcon } from '@/components/sidebar/ProtocolIcon'
@@ -110,6 +111,16 @@ export function TabBar() {
               onContext={(e) =>
                 open(e, [
                   { label: 'Rename tab', onClick: () => promptRename(tab) },
+                  { 
+                    label: 'Duplicate session', 
+                    onClick: () => {
+                      const p = tab.panes.find((x) => x.id === tab.activePaneId) ?? tab.panes[0];
+                      if (!p?.sessionId) return useUiStore.getState().notify('This tab is not linked to a saved session', 'error');
+                      const s = useSessionStore.getState().sessions.find((x) => x.id === p.sessionId);
+                      if (s) useUiStore.getState().openDialog({ kind: 'newSession', session: s, duplicate: true });
+                      else useUiStore.getState().notify('Session not found', 'error');
+                    }
+                  },
                   { label: 'Split right', onClick: () => useTabStore.getState().splitPane(tab.id, 'h') },
                   { label: 'Split down', onClick: () => useTabStore.getState().splitPane(tab.id, 'v') },
                   { separator: true },

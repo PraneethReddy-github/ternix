@@ -1,4 +1,4 @@
-import { Server, FolderUp, Code2, Plug, CircleDot, Settings, Search, KeyRound, Sun, Moon } from 'lucide-react'
+import { Server, FolderUp, Code2, Plug, CircleDot, Settings, Search, KeyRound, Sun, Moon, Activity } from 'lucide-react'
 import type { ActivityView } from '@shared/ui'
 import { useUiStore } from '@/store/useUiStore'
 import { useThemeStore } from '@/store/useThemeStore'
@@ -10,6 +10,7 @@ const VIEWS: { id: ActivityView; icon: typeof Server; label: string }[] = [
   { id: 'snippets', icon: Code2, label: 'Snippets' },
   { id: 'tunnels', icon: Plug, label: 'Tunnels' },
   { id: 'recordings', icon: CircleDot, label: 'Recordings' },
+  { id: 'monitor', icon: Activity, label: 'Monitor' },
   { id: 'search', icon: Search, label: 'Search' },
   { id: 'settings', icon: Settings, label: 'Settings' }
 ]

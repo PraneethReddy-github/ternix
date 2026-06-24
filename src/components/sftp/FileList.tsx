@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowUp, RefreshCw, FolderPlus, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { ArrowUp, RefreshCw, FolderPlus, Eye, EyeOff, Loader2, RotateCcw, WifiOff } from 'lucide-react'
 import type { SftpEntry } from '@shared/index'
 import type { MenuItem } from '@/components/ui/ContextMenu'
 import { useContextMenu } from '@/components/ui/ContextMenu'
@@ -37,7 +37,7 @@ export function FileList({
   }, [pane.path])
 
   return (
-    <div className="flex flex-col min-h-0 flex-1 border-r border-border last:border-r-0">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       <div className="h-8 flex items-center gap-1 px-2 border-b border-border bg-surface shrink-0">
         <span className="text-[11px] uppercase text-muted font-semibold mr-1">{title}</span>
         <button className="text-muted hover:text-text p-1" title="Up" onClick={pane.up}><ArrowUp size={13} /></button>
@@ -46,13 +46,18 @@ export function FileList({
         <button className="text-muted hover:text-text p-1" title="Toggle hidden" onClick={() => pane.setShowHidden(!pane.showHidden)}>
           {pane.showHidden ? <Eye size={13} /> : <EyeOff size={13} />}
         </button>
-        {pane.loading && <Loader2 size={13} className="tx-spin text-muted" />}
+        {pane.loading && <Loader2 size={13} className="animate-spin text-muted ml-1" />}
+        {'retry' in pane && pane.error && (
+          <button className="text-muted hover:text-warning p-1" title="Retry" onClick={(pane as any).retry}>
+            <RotateCcw size={12} />
+          </button>
+        )}
         <span className="ml-auto text-[10px] text-muted opacity-50">Drag files to transfer</span>
       </div>
 
       <input
         className="px-2 py-1 text-[11px] text-muted font-mono truncate text-left border-b border-border bg-transparent outline-none focus:text-text hover:text-text w-full"
-        value={pathInput || '/'}
+        value={pathInput}
         onChange={(e) => setPathInput(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') pane.list(pathInput)
@@ -72,8 +77,24 @@ export function FileList({
           }
         }}
       >
-        {pane.error ? (
-          <div className="text-[12px] text-danger p-3">{pane.error}</div>
+        {pane.loading && !pane.path ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2 text-muted py-6">
+            <Loader2 size={20} className="animate-spin opacity-50" />
+            <span className="text-[11px] opacity-60">Opening SFTP session…</span>
+          </div>
+        ) : pane.error ? (
+          <div className="flex flex-col items-center justify-center h-full gap-2 px-3 text-center py-6">
+            <WifiOff size={22} className="text-danger opacity-60" />
+            <div className="text-[11px] text-danger leading-relaxed whitespace-pre-line">{pane.error}</div>
+            {'retry' in pane && (
+              <button
+                className="flex items-center gap-1 px-3 py-1 text-[11px] rounded border border-border text-muted hover:text-text transition-colors"
+                onClick={(pane as any).retry}
+              >
+                <RotateCcw size={11} /> Retry
+              </button>
+            )}
+          </div>
         ) : (
           <table className="w-full">
             <tbody>

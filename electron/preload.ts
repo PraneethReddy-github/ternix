@@ -148,6 +148,7 @@ const api: TernixApi = {
     saveFile: (defaultName, content) => invoke('system:saveFile', defaultName, content),
     readClipboard: () => invoke('system:readClipboard'),
     writeClipboard: (text) => invoke('system:writeClipboard', text),
+    writeClipboardHtml: (html, text) => invoke('system:writeClipboardHtml', html, text),
     platform: () => invoke('system:platform'),
     version: () => invoke('system:version')
   },
@@ -162,6 +163,9 @@ const api: TernixApi = {
   updates: {
     check: () => invoke('updates:check'),
     onStatus: (cb) => subscribe('updates:status', cb)
+  },
+  stats: {
+    fetch: (tabId: string | null) => invoke('stats:fetch', tabId)
   }
 }
 

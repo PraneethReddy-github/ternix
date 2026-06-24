@@ -33,9 +33,9 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      // sandbox must be false when --no-sandbox is active (Linux); on Windows/macOS
-      // Electron's own sandbox is used instead of the SUID helper.
-      sandbox: process.platform !== 'linux',
+      // sandbox: false is safe with contextIsolation: true + preload bridge.
+      // sandbox: true on Windows can block IPC channels used by SFTP.
+      sandbox: false,
       webviewTag: false,
       spellcheck: false
     }
@@ -48,6 +48,13 @@ function createWindow(): void {
   mainWindow.on('unmaximize', () => Bus.emit('window:maximize-change', false))
   mainWindow.on('closed', () => {
     mainWindow = null
+  })
+
+  // Ctrl+Shift+I opens DevTools (handy for debugging on Windows).
+  mainWindow.webContents.on('before-input-event', (_e, input) => {
+    if (input.type === 'keyDown' && input.key === 'I' && input.control && input.shift) {
+      mainWindow?.webContents.toggleDevTools()
+    }
   })
 
   // Block navigation away from the app and external window opens.

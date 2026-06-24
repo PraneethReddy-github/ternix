@@ -5,22 +5,29 @@ export function ConfirmDialog({
   message,
   danger,
   onConfirm,
+  onCancel,
   onClose
 }: {
   title: string
   message: string
   danger?: boolean
   onConfirm: () => void
+  onCancel?: () => void
   onClose: () => void
 }) {
+  const handleClose = () => {
+    onCancel?.()
+    onClose()
+  }
+
   return (
     <Modal
       title={title}
       width={420}
-      onClose={onClose}
+      onClose={handleClose}
       footer={
         <>
-          <button className="tx-btn-ghost border border-border" onClick={onClose}>
+          <button className="tx-btn-ghost border border-border" onClick={handleClose}>
             Cancel
           </button>
           <button

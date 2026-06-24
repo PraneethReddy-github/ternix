@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron'
 import { registerSessionHandlers } from './sessions'
 import { registerTerminalHandlers } from './terminal'
 import { registerSftpHandlers } from './sftp'
+import { registerStatsHandlers } from './stats'
 import { registerKeyHandlers } from './keys'
 import { registerSnippetHandlers } from './snippets'
 import { registerTunnelHandlers } from './tunnels'
@@ -15,6 +16,7 @@ export function registerAllIpc(getWindow: () => BrowserWindow | null): void {
   registerSessionHandlers()
   registerTerminalHandlers()
   registerSftpHandlers()
+  registerStatsHandlers()
   registerKeyHandlers()
   registerSnippetHandlers()
   registerTunnelHandlers()

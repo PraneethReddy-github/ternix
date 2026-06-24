@@ -1,12 +1,22 @@
 import { useEffect, useState } from 'react'
-import { Radio, ArrowDownUp, Lock } from 'lucide-react'
+import { Radio, ArrowDownUp, Lock, Cpu, MemoryStick, Network } from 'lucide-react'
 import { useTabStore } from '@/store/useTabStore'
 import { useTransferStore } from '@/store/useTransferStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
+import { useStatsStore } from '@/store/useStatsStore'
 import { ProtocolIcon } from '@/components/sidebar/ProtocolIcon'
 import { formatSpeed } from '@/utils/formatBytes'
 import { cn } from '@/utils/cn'
+
+function fmtBytes(bytes: number): string {
+  if (bytes >= 1e9) return (bytes / 1e9).toFixed(2) + 'G'
+  if (bytes >= 1e6) return (bytes / 1e6).toFixed(2) + 'M'
+  if (bytes >= 1e3) return (bytes / 1e3).toFixed(2) + 'K'
+  return bytes.toFixed(2) + 'B'
+}
+
+
 
 export function StatusBar() {
   const pane = useTabStore((s) => {
@@ -17,6 +27,17 @@ export function StatusBar() {
   const speed = useTransferStore((s) => s.totalSpeed())
   const activeTransfers = useTransferStore((s) => s.active().filter((t) => t.status === 'active').length)
   const showClock = useSettingsStore((s) => s.getBool('appearance.showClock'))
+
+  // Stats from global store (fed by always-on StatsPoller)
+  const stats   = useStatsStore((s) => s.latest)
+  const rxHist  = useStatsStore((s) => s.rxHistory)
+  const txHist  = useStatsStore((s) => s.txHistory)
+
+  const rxRate = rxHist.length > 0 ? (rxHist[rxHist.length - 1] ?? 0) : 0
+  const txRate = txHist.length > 0 ? (txHist[txHist.length - 1] ?? 0) : 0
+  // Show network row once we have at least 2 readings (needed for a delta).
+  // Never hide it based on traffic level — that causes layout shifts.
+  const hasNet = rxHist.length >= 2
 
   const [dims, setDims] = useState('')
   const [latency, setLatency] = useState<number | null>(null)
@@ -32,22 +53,15 @@ export function StatusBar() {
   }, [showClock])
 
   useEffect(() => {
-    if (!pane || pane.state !== 'connected') {
-      setLatency(null)
-      return
-    }
+    if (!pane || pane.state !== 'connected') { setLatency(null); return }
     let mounted = true
     const sample = () => window.ternix.terminal.latency(pane.id).then((ms) => mounted && setLatency(ms)).catch(() => {})
     sample()
     const id = setInterval(sample, 30000)
-    return () => {
-      mounted = false
-      clearInterval(id)
-    }
+    return () => { mounted = false; clearInterval(id) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pane?.id, pane?.state])
 
-  // dims is updated by terminal panes via a custom window event.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail
@@ -58,10 +72,14 @@ export function StatusBar() {
   }, [pane?.id])
 
   const stateColor =
-    pane?.state === 'connected' ? 'bg-success' : pane?.state === 'connecting' ? 'bg-warning' : 'bg-danger'
+    pane?.state === 'connected' ? 'bg-success'
+    : pane?.state === 'connecting' ? 'bg-warning'
+    : 'bg-danger'
 
   return (
     <div className="h-6 flex items-center justify-between px-3 bg-surface border-t border-border text-[11px] text-muted select-none">
+
+      {/* Left: session info + inline live stats */}
       <div className="flex items-center gap-3">
         {pane ? (
           <>
@@ -76,7 +94,35 @@ export function StatusBar() {
         ) : (
           <span>No active session</span>
         )}
+
+        {/* Live stats — only shown when there is an active pane AND we have data */}
+        {pane && stats && (
+          <>
+            <span className="opacity-30">·</span>
+            <span className="flex items-center gap-0.5" title={`CPU ${stats.cpu.toFixed(2)}%`}>
+              <Cpu size={10} className="opacity-50" />
+              <span className="font-mono text-[10px]">
+                {stats.cpu.toFixed(2)}%
+              </span>
+            </span>
+            <span className="flex items-center gap-0.5" title={`Memory ${stats.mem.percent.toFixed(2)}%`}>
+              <MemoryStick size={10} className="opacity-50" />
+              <span className="font-mono text-[10px]">
+                {stats.mem.percent.toFixed(2)}%
+              </span>
+            </span>
+            {hasNet && (
+              <span className="flex items-center gap-0.5" title="Network RX / TX">
+                <Network size={10} className="opacity-50" />
+                <span className="font-mono text-[10px]">↓{fmtBytes(rxRate)}/s</span>
+                <span className="font-mono text-[10px] ml-0.5">↑{fmtBytes(txRate)}/s</span>
+              </span>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Right: transfers, dims, clock, lock */}
       <div className="flex items-center gap-3">
         {broadcastTab && (
           <span className="flex items-center gap-1 text-warning">
@@ -84,7 +130,7 @@ export function StatusBar() {
           </span>
         )}
         {activeTransfers > 0 && (
-          <button 
+          <button
             className="flex items-center gap-1 text-accent hover:opacity-80"
             onClick={() => useUiStore.getState().setView('sftp')}
             title="Open transfer queue"

@@ -137,13 +137,15 @@ export function SftpPanel() {
   }
 
   return (
-    <div className="h-full bg-surface flex flex-col min-h-0">
+    <div className="h-full bg-surface flex flex-col min-h-0 overflow-hidden">
       <Header onClose={toggleSftp} />
-      <div className="flex-1 flex min-h-0">
+      {/* Vertical stack: LOCAL on top, REMOTE below, each with its own scroller */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <FileList title="Local" side="local" pane={local} onOpenEntry={openEntry('local')} onMkdir={mkdir('local')} onDropTransfer={transfer} contextItems={contextItems} />
+        <div className="h-px bg-border shrink-0" />
         <FileList title="Remote" side="remote" pane={remote} onOpenEntry={openEntry('remote')} onMkdir={mkdir('remote')} onDropTransfer={transfer} contextItems={contextItems} />
       </div>
-      <div className="border-t border-border max-h-56 overflow-hidden">
+      <div className="border-t border-border shrink-0">
         <TransferQueue />
       </div>
       {chmodTarget && (

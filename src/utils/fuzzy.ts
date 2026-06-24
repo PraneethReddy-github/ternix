@@ -1,21 +1,29 @@
-/** Subsequence fuzzy match returning a score (higher = better) or -1 for no match. */
+/** Tokenized substring match returning a score (higher = better) or -1 for no match. */
 export function fuzzyScore(query: string, text: string): number {
   if (!query) return 0
-  const q = query.toLowerCase()
+  const q = query.toLowerCase().trim()
+  if (!q) return 0
   const t = text.toLowerCase()
-  let qi = 0
+  
+  const tokens = q.split(/\s+/)
   let score = 0
-  let streak = 0
-  let prevIndex = -1
-  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
-    if (t[ti] === q[qi]) {
-      streak = prevIndex === ti - 1 ? streak + 1 : 1
-      score += 10 + streak * 5 + (ti === 0 || /[\s/_-]/.test(t[ti - 1]) ? 15 : 0)
-      prevIndex = ti
-      qi++
+  
+  for (const token of tokens) {
+    const idx = t.indexOf(token)
+    if (idx === -1) return -1 // All tokens must be present
+    
+    // Base score for the token length
+    score += token.length * 10
+    
+    // Bonus for matching at the beginning of the text or after a word boundary
+    if (idx === 0) {
+      score += 20
+    } else if (/[\s/_-]/.test(t[idx - 1])) {
+      score += 15
     }
   }
-  return qi === q.length ? score - t.length * 0.1 : -1
+  
+  return score
 }
 
 export function fuzzyFilter<T>(query: string, items: T[], keyFn: (item: T) => string): T[] {

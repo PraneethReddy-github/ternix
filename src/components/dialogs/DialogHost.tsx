@@ -25,7 +25,7 @@ export function DialogHost() {
           case 'confirm':
             return <ConfirmDialog key={i} {...dialog} onClose={onClose} />
           case 'newSession':
-            return <NewSessionDialog key={i} session={dialog.session} groupId={dialog.groupId} onClose={onClose} />
+            return <NewSessionDialog key={i} session={dialog.session} groupId={dialog.groupId} duplicate={dialog.duplicate} onClose={onClose} />
           case 'keyVault':
             return <KeyVaultDialog key={i} onClose={onClose} />
           case 'tunnels':

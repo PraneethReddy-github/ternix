@@ -5,6 +5,7 @@ import { TunnelsPanel } from '@/components/sidebar/TunnelsPanel'
 import { RecordingsPanel } from '@/components/sidebar/RecordingsPanel'
 import { SearchPanel } from '@/components/sidebar/SearchPanel'
 import { SftpSidebar } from '@/components/sidebar/SftpSidebar'
+import { StatsPanel } from '@/components/sidebar/StatsPanel'
 
 export function Sidebar() {
   const view = useUiStore((s) => s.activeView)
@@ -17,6 +18,7 @@ export function Sidebar() {
       {view === 'tunnels' && <TunnelsPanel />}
       {view === 'recordings' && <RecordingsPanel />}
       {view === 'search' && <SearchPanel />}
+      {view === 'monitor' && <StatsPanel />}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { handle } from './util'
 import { homedir } from 'node:os'
 import { readdirSync, mkdirSync, rmSync, renameSync, lstatSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve as resolvePath } from 'node:path'
 import type { SftpEntry } from '@shared/index'
 import { SftpService } from '../services/SftpService'
 
@@ -11,10 +11,17 @@ function localModePerms(mode: number): string {
 }
 
 function listLocal(dir: string): SftpEntry[] {
-  const entries = readdirSync(dir)
+  // Resolve to absolute path — handles relative inputs and Windows drive roots
+  const absDir = resolvePath(dir)
+  let names: string[]
+  try {
+    names = readdirSync(absDir)
+  } catch {
+    return []
+  }
   const out: SftpEntry[] = []
-  for (const name of entries) {
-    const full = join(dir, name)
+  for (const name of names) {
+    const full = join(absDir, name)
     try {
       const st = lstatSync(full)
       out.push({
@@ -25,11 +32,11 @@ function listLocal(dir: string): SftpEntry[] {
         mode: st.mode,
         permissions: localModePerms(st.mode),
         modified: st.mtimeMs,
-        owner: String(st.uid),
-        group: String(st.gid)
+        owner: String(st.uid ?? ''),
+        group: String(st.gid ?? '')
       })
     } catch {
-      /* skip unreadable */
+      /* skip unreadable entries (Windows system files, junctions, etc.) */
     }
   }
   return out

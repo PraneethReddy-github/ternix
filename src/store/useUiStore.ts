@@ -3,14 +3,14 @@ import type { ActivityView } from '@shared/ui'
 import type { Session } from '@shared/index'
 
 export type DialogKind =
-  | { kind: 'newSession'; session?: Session; groupId?: number | null }
+  | { kind: 'newSession'; session?: Session; groupId?: number | null; duplicate?: boolean }
   | { kind: 'keyVault' }
   | { kind: 'tunnels'; sessionId: number }
   | { kind: 'snippet'; id?: number }
   | { kind: 'themeEditor'; baseId?: string }
   | { kind: 'exportImport' }
   | { kind: 'connectionLog'; sessionId?: number }
-  | { kind: 'confirm'; title: string; message: string; danger?: boolean; onConfirm: () => void }
+  | { kind: 'confirm'; title: string; message: string; danger?: boolean; onConfirm: () => void; onCancel?: () => void }
   | { kind: 'prompt'; title: string; label?: string; defaultValue?: string; password?: boolean; onSubmit: (val: string) => void }
 
 interface UiState {

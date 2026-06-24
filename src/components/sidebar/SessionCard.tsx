@@ -1,10 +1,11 @@
 import type { Session } from '@shared/index'
 import { ProtocolIcon } from './ProtocolIcon'
-import { isRecent, timeAgo } from '@/utils/formatDuration'
+import { timeAgo } from '@/utils/formatDuration'
 import { cn } from '@/utils/cn'
+import { useTabStore } from '@/store/useTabStore'
 
-export function connectSession(session: Session, useTabStore: any) {
-  useTabStore.getState().newTab({
+export function connectSession(session: Session, useTabStoreApi: any) {
+  useTabStoreApi.getState().newTab({
     sessionId: session.id,
     protocol: session.protocol,
     title: session.name,
@@ -24,6 +25,10 @@ export function SessionCard({
   onConnect: () => void
   onContext: (e: React.MouseEvent) => void
 }) {
+  const isConnected = useTabStore((s) =>
+    s.tabs.some((t) => t.panes.some((p) => p.sessionId === session.id && p.state === 'connected'))
+  )
+
   return (
     <div
       tabIndex={0}
@@ -40,8 +45,8 @@ export function SessionCard({
       {session.host && <span className="text-[11px] text-muted truncate">{session.host}</span>}
       <div className="flex-1" />
       <span
-        className={cn('w-1.5 h-1.5 rounded-full shrink-0', isRecent(session.last_connected) ? 'bg-success' : 'bg-border')}
-        title={`Last connected ${timeAgo(session.last_connected)}`}
+        className={cn('w-1.5 h-1.5 rounded-full shrink-0', isConnected ? 'bg-accent' : 'bg-border')}
+        title={isConnected ? 'Connected' : `Last connected ${timeAgo(session.last_connected)}`}
       />
     </div>
   )

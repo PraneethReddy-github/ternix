@@ -35,6 +35,7 @@ export function registerSystemHandlers(getWindow: () => BrowserWindow | null): v
   })
   handle<string>('system:readClipboard', () => clipboard.readText())
   handle<void>('system:writeClipboard', (text: string) => clipboard.writeText(text))
+  handle<void>('system:writeClipboardHtml', (html: string, text: string) => clipboard.write({ html, text }))
   handle<NodeJS.Platform>('system:platform', () => process.platform)
   handle<string>('system:version', () => app.getVersion())
 

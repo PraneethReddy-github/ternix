@@ -14,12 +14,12 @@ const PROTOCOLS: { id: Protocol; label: string }[] = [
   { id: 'vnc', label: 'VNC' }
 ]
 const BAUD = [300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
-const TABS = ['Connection', 'Advanced', 'Startup', 'Notes', 'Appearance'] as const
+const TABS = ['Connection', 'Advanced', 'Startup', 'Notes'] as const
 type TabKey = (typeof TABS)[number]
 
 const ACCENTS = ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#39c5cf', '#ff7b72', null]
 
-export function NewSessionDialog({ session, groupId, onClose }: { session?: Session; groupId?: number | null; onClose: () => void }) {
+export function NewSessionDialog({ session, groupId, duplicate, onClose }: { session?: Session; groupId?: number | null; duplicate?: boolean; onClose: () => void }) {
   const groups = useSessionStore((s) => s.groups)
   const sessions = useSessionStore((s) => s.sessions)
   const createSession = useSessionStore((s) => s.createSession)
@@ -30,6 +30,8 @@ export function NewSessionDialog({ session, groupId, onClose }: { session?: Sess
   const [ports, setPorts] = useState<{ path: string }[]>([])
   const [password, setPassword] = useState('')
   const [passphrase, setPassphrase] = useState('')
+
+  const isEditing = !!session && !duplicate
 
   const [form, setForm] = useState<SessionInput>(() =>
     session
@@ -71,7 +73,7 @@ export function NewSessionDialog({ session, groupId, onClose }: { session?: Sess
     
     // Check for duplicates
     const isDuplicate = sessions.some(s =>
-      s.id !== session?.id &&
+      (!isEditing || s.id !== session?.id) &&
       s.name.trim() === form.name.trim() &&
       s.protocol === form.protocol &&
       (s.host || '').trim() === (form.host || '').trim() &&
@@ -85,9 +87,9 @@ export function NewSessionDialog({ session, groupId, onClose }: { session?: Sess
     if (password) payload.password = password
     if (passphrase) payload.passphrase = passphrase
     try {
-      if (session) await updateSession(session.id, payload)
+      if (isEditing) await updateSession(session!.id, payload)
       else await createSession(payload)
-      notify(session ? 'Session updated' : 'Session created', 'success')
+      notify(isEditing ? 'Session updated' : 'Session created', 'success')
       onClose()
     } catch (e: any) {
       notify(e.message, 'error')
@@ -98,13 +100,13 @@ export function NewSessionDialog({ session, groupId, onClose }: { session?: Sess
 
   return (
     <Modal
-      title={session ? `Edit · ${session.name}` : 'New session'}
+      title={isEditing ? `Edit · ${session.name}` : duplicate ? `Duplicate · ${session!.name}` : 'New session'}
       width={620}
       onClose={onClose}
       footer={
         <>
           <button className="tx-btn-ghost border border-border" onClick={onClose}>Cancel</button>
-          <button className="tx-btn-primary" onClick={save}>{session ? 'Save' : 'Create'}</button>
+          <button className="tx-btn-primary" onClick={save}>{isEditing ? 'Save' : 'Create'}</button>
         </>
       }
     >
@@ -328,23 +330,6 @@ export function NewSessionDialog({ session, groupId, onClose }: { session?: Sess
       {tab === 'Notes' && (
         <Field label="Notes" hint="Free-text notes about this server">
           <textarea className="tx-input h-44" value={form.notes ?? ''} onChange={(e) => set('notes', e.target.value)} />
-        </Field>
-      )}
-
-      {tab === 'Appearance' && (
-        <Field label="Tab accent color">
-          <div className="flex gap-2">
-            {ACCENTS.map((c, i) => (
-              <button
-                key={i}
-                onClick={() => set('color', c)}
-                className={cn('w-7 h-7 rounded-full border-2', form.color === c ? 'border-text' : 'border-transparent')}
-                style={{ background: c ?? 'transparent', borderColor: c ? undefined : 'var(--tx-border)' }}
-              >
-                {!c && <span className="text-[10px] text-muted">×</span>}
-              </button>
-            ))}
-          </div>
         </Field>
       )}
     </Modal>

@@ -36,7 +36,7 @@ export interface Tab {
   broadcast: boolean
 }
 
-export type ActivityView = 'sessions' | 'sftp' | 'snippets' | 'tunnels' | 'recordings' | 'settings' | 'search'
+export type ActivityView = 'sessions' | 'sftp' | 'snippets' | 'tunnels' | 'recordings' | 'settings' | 'search' | 'monitor'
 
 export interface SettingsMap {
   [key: string]: string

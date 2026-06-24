@@ -40,14 +40,46 @@ export function TerminalPane({ tab, pane, active }: { tab: Tab; pane: Pane; acti
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctrl.terminal.current])
 
+  // Ensure terminal grabs focus when it becomes the active pane
+  useEffect(() => {
+    if (active) {
+      // Small timeout to ensure DOM is visible if we just switched tabs
+      const timer = setTimeout(() => ctrl.focus(), 50)
+      return () => clearTimeout(timer)
+    }
+  }, [active, ctrl])
+
   const doPaste = async () => {
     const text = await window.ternix.system.readClipboard()
-    if (!text) return
-    if (useSettingsStore.getState().getBool('terminal.pasteConfirmMultiline') && text.includes('\n')) {
-      if (!window.confirm(`Paste ${text.split('\n').length} lines?`)) return
+    if (!text) {
+      ctrl.focus()
+      return
     }
-    const trimmed = useSettingsStore.getState().getBool('terminal.trimPasteWhitespace') ? text.replace(/[ \t]+$/gm, '') : text
+    
+    // Normalize Windows CRLF to LF to prevent double-enters in nano/vim
+    const normalized = text.replace(/\r\n/g, '\n')
+    
+    const lines = normalized.split('\n').length
+    if (useSettingsStore.getState().getBool('terminal.pasteConfirmMultiline') && lines > 1) {
+      useUiStore.getState().openDialog({
+        kind: 'confirm',
+        title: 'Paste multiple lines?',
+        message: `You are about to paste ${lines} lines of text.`,
+        onConfirm: () => {
+          const trimmed = useSettingsStore.getState().getBool('terminal.trimPasteWhitespace') ? normalized.replace(/[ \t]+$/gm, '') : normalized
+          ctrl.paste(trimmed)
+          setTimeout(() => ctrl.focus(), 10)
+        },
+        onCancel: () => {
+          setTimeout(() => ctrl.focus(), 10)
+        }
+      })
+      return
+    }
+    
+    const trimmed = useSettingsStore.getState().getBool('terminal.trimPasteWhitespace') ? normalized.replace(/[ \t]+$/gm, '') : normalized
     ctrl.paste(trimmed)
+    setTimeout(() => ctrl.focus(), 10)
   }
 
   const copy = () => {
@@ -76,14 +108,18 @@ export function TerminalPane({ tab, pane, active }: { tab: Tab; pane: Pane; acti
 
   const copyAsHtml = () => {
     const sel = ctrl.terminal.current?.getSelection() ?? ''
-    window.ternix.system.writeClipboard(`<pre style="font-family:monospace">${sel.replace(/</g, '&lt;')}</pre>`)
+    const html = `<pre style="font-family:monospace">${sel.replace(/</g, '&lt;')}</pre>`
+    window.ternix.system.writeClipboardHtml(html, sel)
     notify('Copied as HTML', 'success')
   }
 
   return (
     <div
       className={cn('relative flex flex-col min-h-0 min-w-0 h-full', active && tab.panes.length > 1 && 'ring-1 ring-accent/60')}
-      onMouseDown={() => setActivePane(tab.id, pane.id)}
+      onMouseDown={() => {
+        setActivePane(tab.id, pane.id)
+        ctrl.focus()
+      }}
     >
       {showToolbar && <TerminalToolbar tab={tab} pane={pane} />}
       <div className="relative flex-1 min-h-0 bg-bg" onContextMenu={onContext}>

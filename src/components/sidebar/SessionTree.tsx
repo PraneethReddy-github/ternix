@@ -45,7 +45,7 @@ export function SessionTree() {
       { label: 'Open SFTP', onClick: () => { connect(s); useUiStore.getState().toggleSftp() } },
       { separator: true },
       { label: 'Edit', onClick: () => openDialog({ kind: 'newSession', session: s }) },
-      { label: 'Duplicate', onClick: () => duplicateSession(s.id) },
+      { label: 'Duplicate', onClick: () => openDialog({ kind: 'newSession', session: s, duplicate: true }) },
       { label: 'Tunnels…', onClick: () => openDialog({ kind: 'tunnels', sessionId: s.id }) },
       { label: 'View connection log', onClick: () => openDialog({ kind: 'connectionLog', sessionId: s.id }) },
       { label: 'Copy host address', onClick: () => { window.ternix.system.writeClipboard(s.host ?? ''); notify('Host copied', 'success') } },
