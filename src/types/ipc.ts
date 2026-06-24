@@ -174,7 +174,12 @@ export interface TernixApi {
   }
   updates: {
     check(): Promise<{ available: boolean; version?: string }>
+    download(): Promise<void>
+    install(): void
     onStatus(cb: (s: { event: string; info?: any }) => void): () => void
+  }
+  stats: {
+    fetch(tabId: string | null): Promise<any>
   }
 }
 

@@ -59,18 +59,42 @@ export function registerSystemHandlers(getWindow: () => BrowserWindow | null): v
   })
 
   // Updates (electron-updater is optional)
+  let autoUpdater: any = null
+  const getUpdater = () => {
+    if (!autoUpdater) {
+      try {
+        autoUpdater = nodeRequire('electron-updater').autoUpdater
+        autoUpdater.autoDownload = false
+        autoUpdater.on('update-available', (info: any) => Bus.emit('updates:status', { event: 'available', info }))
+        autoUpdater.on('update-not-available', () => Bus.emit('updates:status', { event: 'none' }))
+        autoUpdater.on('error', (err: any) => Bus.emit('updates:status', { event: 'error', info: { message: String(err) } }))
+        autoUpdater.on('download-progress', (p: any) => Bus.emit('updates:status', { event: 'progress', info: p }))
+        autoUpdater.on('update-downloaded', (info: any) => Bus.emit('updates:status', { event: 'downloaded', info }))
+      } catch {
+        return null
+      }
+    }
+    return autoUpdater
+  }
+
   handle<{ available: boolean; version?: string }>('updates:check', async () => {
     try {
-      const { autoUpdater } = nodeRequire('electron-updater')
-      autoUpdater.on('update-available', (info: any) => Bus.emit('updates:status', { event: 'available', info }))
-      autoUpdater.on('update-not-available', () => Bus.emit('updates:status', { event: 'none' }))
-      autoUpdater.on('error', (err: any) => Bus.emit('updates:status', { event: 'error', info: { message: String(err) } }))
-      autoUpdater.on('download-progress', (p: any) => Bus.emit('updates:status', { event: 'progress', info: p }))
-      autoUpdater.on('update-downloaded', (info: any) => Bus.emit('updates:status', { event: 'downloaded', info }))
-      const result = await autoUpdater.checkForUpdates()
+      const up = getUpdater()
+      if (!up) return { available: false }
+      const result = await up.checkForUpdates()
       return { available: !!result?.updateInfo, version: result?.updateInfo?.version }
     } catch {
       return { available: false }
     }
+  })
+
+  handle<void>('updates:download', async () => {
+    const up = getUpdater()
+    if (up) await up.downloadUpdate()
+  })
+
+  on('updates:install', () => {
+    const up = getUpdater()
+    if (up) up.quitAndInstall()
   })
 }

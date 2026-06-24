@@ -162,6 +162,8 @@ const api: TernixApi = {
   },
   updates: {
     check: () => invoke('updates:check'),
+    download: () => invoke('updates:download'),
+    install: () => ipcRenderer.send('updates:install'),
     onStatus: (cb) => subscribe('updates:status', cb)
   },
   stats: {

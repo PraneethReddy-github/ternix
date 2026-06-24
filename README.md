@@ -8,7 +8,7 @@
 
   <p>
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg" />
-    <img alt="Version" src="https://img.shields.io/badge/version-0.1.2-green.svg" />
+    <img alt="Version" src="https://img.shields.io/badge/version-0.1.3-green.svg" />
     <img alt="Platform" src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg" />
     <img alt="Electron" src="https://img.shields.io/badge/Electron-33-47848F?logo=electron" />
     <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react" />
