@@ -82,7 +82,9 @@ export function registerSystemHandlers(getWindow: () => BrowserWindow | null): v
       const up = getUpdater()
       if (!up) return { available: false }
       const result = await up.checkForUpdates()
-      return { available: !!result?.updateInfo, version: result?.updateInfo?.version }
+      const latestVersion = result?.updateInfo?.version
+      const isAvailable = latestVersion && latestVersion !== app.getVersion()
+      return { available: !!isAvailable, version: latestVersion }
     } catch {
       return { available: false }
     }
