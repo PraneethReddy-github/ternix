@@ -1,74 +1,51 @@
-// ── GitHub API ──
+/* ==========================================================
+   THEME TOGGLE
+   ========================================================== */
+const themeToggle = document.getElementById('theme-toggle');
+const htmlEl = document.documentElement;
+
+// Load saved theme or default to light
+const savedTheme = localStorage.getItem('ternix_theme') || 'light';
+htmlEl.setAttribute('data-theme', savedTheme);
+
+themeToggle.addEventListener('click', () => {
+  const currentTheme = htmlEl.getAttribute('data-theme');
+  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+  htmlEl.setAttribute('data-theme', newTheme);
+  localStorage.setItem('ternix_theme', newTheme);
+});
+
+/* ==========================================================
+   GITHUB RELEASES (DOWNLOADS)
+   ========================================================== */
 const OWNER = 'PraneethReddy-github';
 const REPO  = 'ternix';
 const API   = `https://api.github.com/repos/${OWNER}/${REPO}/releases/latest`;
 
-// ── Navbar scroll effect ──
-window.addEventListener('scroll', () => {
-  document.getElementById('navbar')?.classList.toggle('scrolled', window.scrollY > 20);
-});
-
-// ── Scroll to download ──
-function scrollToDownload() {
-  document.getElementById('download')?.scrollIntoView({ behavior: 'smooth' });
-}
-
-// ── Install tabs ──
-function showInstallTab(id) {
-  document.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.install-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById(`tab-${id}`)?.classList.add('active');
-  document.getElementById(`panel-${id}`)?.classList.add('active');
-}
-
-// ── Copy code ──
-function copyCode(id) {
-  const pre = document.getElementById(id);
-  if (!pre) return;
-  const text = pre.innerText;
-  navigator.clipboard.writeText(text).then(() => {
-    const btns = document.querySelectorAll('.copy-btn');
-    btns.forEach(btn => {
-      if (btn.getAttribute('onclick')?.includes(id)) {
-        btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = 'Copy', 2000);
-      }
-    });
-  });
-}
-
-// ── Format file size ──
 function formatSize(bytes) {
   if (!bytes) return '';
   const mb = bytes / (1024 * 1024);
-  return `${mb.toFixed(0)} MB`;
+  return `${mb.toFixed(1)} MB`;
 }
 
-// ── Format date ──
 function formatDate(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-// ── Build download button HTML ──
-function makeDownloadBtn(label, meta, url) {
+function makeDownloadItem(name, meta, url, iconHtml) {
   return `
-    <a class="download-btn" href="${url}" id="btn-${label.replace(/\s+/g,'-').toLowerCase()}">
-      <div class="download-btn-info">
-        <span class="download-btn-label">${label}</span>
-        <span class="download-btn-meta">${meta}</span>
+    <a href="${url}" class="dl-item">
+      <div class="dl-item-info">
+        <span class="dl-item-name">${name}</span>
+        <span class="dl-item-meta">${meta}</span>
       </div>
-      <div class="download-btn-arrow">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
+      <div class="dl-item-icon">
+        ${iconHtml || `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`}
       </div>
     </a>`;
 }
 
-// ── Fetch and render release info ──
 async function loadRelease() {
   try {
     const res = await fetch(API);
@@ -80,16 +57,11 @@ async function loadRelease() {
     const date    = data.published_at ? formatDate(data.published_at) : '';
     const assets  = data.assets || [];
 
-    // ── Update version labels ──
-    const els = ['hero-version-badge','stat-version','download-version-title'];
-    els.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = id === 'hero-version-badge' ? `${tag} — Now Available` : version;
-    });
-    const dateEl = document.getElementById('download-date');
-    if (dateEl) dateEl.textContent = `Released ${date} · Free & Open Source`;
+    // Update version & date
+    document.getElementById('download-title').textContent = `Get Ternix ${tag}`;
+    document.getElementById('download-date').textContent = `Released ${date} · Free & Open Source`;
 
-    // ── Categorise assets ──
+    // Categorise assets
     const find = (patterns) => assets.find(a => patterns.some(p => a.name.match(p)));
 
     const setup    = find([/Setup.*\.exe$/i, /Ternix\.Setup.*exe$/i]);
@@ -97,54 +69,27 @@ async function loadRelease() {
     const appimage = find([/\.AppImage$/i]);
     const deb      = find([/\.deb$/i]);
 
-    // ── Windows card ──
+    // Windows
     const winEl = document.getElementById('windows-options');
     if (winEl) {
       let html = '';
-      if (setup)    html += makeDownloadBtn('Installer (.exe)', `NSIS Installer · ${formatSize(setup.size)}`, setup.browser_download_url);
-      if (portable) html += makeDownloadBtn('Portable (.exe)', `No install needed · ${formatSize(portable.size)}`, portable.browser_download_url);
-      if (!html)    html = `<p style="color:var(--text-muted);font-size:.9rem">No Windows assets found in this release.</p>`;
+      if (setup)    html += makeDownloadItem('Installer (.exe)', `NSIS Installer · ${formatSize(setup.size)}`, setup.browser_download_url);
+      if (portable) html += makeDownloadItem('Portable (.exe)', `No install needed · ${formatSize(portable.size)}`, portable.browser_download_url);
+      if (!html)    html = `<p style="font-size:13px;color:var(--muted)">No Windows assets found in this release.</p>`;
       winEl.innerHTML = html;
     }
 
-    // ── Linux card ──
+    // Linux
     const linuxEl = document.getElementById('linux-options');
     if (linuxEl) {
       let html = '';
-      if (deb)      html += makeDownloadBtn('.deb Package', `Debian/Ubuntu · ${formatSize(deb.size)}`, deb.browser_download_url);
-      if (appimage) html += makeDownloadBtn('AppImage', `Universal Linux · ${formatSize(appimage.size)}`, appimage.browser_download_url);
-      if (!html)    html = `<p style="color:var(--text-muted);font-size:.9rem">No Linux assets found in this release.</p>`;
+      if (deb)      html += makeDownloadItem('.deb Package', `Debian/Ubuntu · ${formatSize(deb.size)}`, deb.browser_download_url);
+      if (appimage) html += makeDownloadItem('AppImage', `Universal Linux · ${formatSize(appimage.size)}`, appimage.browser_download_url);
+      if (!html)    html = `<p style="font-size:13px;color:var(--muted)">No Linux assets found in this release.</p>`;
       linuxEl.innerHTML = html;
     }
 
-    // ── Update install-section URLs ──
-    if (setup) {
-      const el = document.getElementById('win-setup-url');
-      if (el) el.textContent = `"${setup.browser_download_url}"`;
-    }
-    if (deb) {
-      const el = document.getElementById('deb-url');
-      if (el) el.textContent = `"${deb.browser_download_url}"`;
-    }
-    if (appimage) {
-      const el = document.getElementById('appimage-url');
-      if (el) el.textContent = `"${appimage.browser_download_url}"`;
-    }
-
-    // ── Release notes ──
-    if (data.body) {
-      const bodyEl = document.getElementById('release-body');
-      if (bodyEl) {
-        bodyEl.innerHTML = data.body
-          .split('\n')
-          .filter(l => l.trim())
-          .map(l => `<p>${l.replace(/^[*-]\s+/, '• ')}</p>`)
-          .join('');
-      }
-      document.getElementById('release-notes').style.display = 'block';
-    }
-
-    // ── Show grid ──
+    // Show grid
     document.getElementById('loading-state').style.display = 'none';
     document.getElementById('download-grid').style.display = 'grid';
 
@@ -155,83 +100,155 @@ async function loadRelease() {
   }
 }
 
-// ── Terminal typewriter ──
-const SEQUENCES = [
-  {
-    cmd: 'ssh admin@prod-server-01',
-    out: [
-      '<span class="t-success">✓ Connected to prod-server-01</span>',
-      '<span class="t-info">Welcome to Ubuntu 24.04 LTS</span>',
-      'Last login: Thu Jun 19 08:00:01 2026',
-    ]
-  },
-  {
-    cmd: 'ternix session list',
-    out: [
-      '<span class="t-info">ID  HOST               STATUS</span>',
-      '<span class="t-success">01  prod-server-01     Connected</span>',
-      '02  staging-api        Connected',
-      '<span class="t-warn">03  dev-01             Idle</span>',
-    ]
-  },
-  {
-    cmd: 'top -bn1 | head -5',
-    out: [
-      'top - 08:31:17 up 42 days,  3:12,  2 users',
-      '<span class="t-info">Tasks: 234 total,   1 running, 233 sleeping</span>',
-      '<span class="t-success">%Cpu(s):  2.4 us,  0.8 sy,  0.0 ni, 96.5 id</span>',
-    ]
-  },
+/* ==========================================================
+   TERMINAL TYPING ANIMATION
+   ========================================================== */
+const terminalBody = document.getElementById('terminal-body');
+const terminalWindow = document.getElementById('terminal-window');
+const cursorEl = document.getElementById('cursor');
+
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const script = [
+  { type: 'prompt', user: 'praneeth', host: 'devbox' },
+  { type: 'type', text: 'ssh admin@prod-server-01' },
+  { type: 'pause', ms: 600 },
+  { type: 'output', text: '' },
+  { type: 'output', html: 'admin@prod-server-01\'s password: <span class="cursor" style="animation: none; opacity: 1"></span>' },
+  { type: 'pause', ms: 800 },
+  { type: 'output', text: '' },
+  { type: 'output', html: '<span class="t-check">Welcome to Ubuntu 24.04.1 LTS (GNU/Linux 6.8.0-35-generic x86_64)</span>' },
+  { type: 'output', text: 'Last login: Thu Jun 19 08:00:01 2026 from 10.0.1.42' },
+  { type: 'pause', ms: 500 },
+  { type: 'prompt', user: 'admin', host: 'prod-server-01' },
+  { type: 'type', text: 'htop' },
+  { type: 'pause', ms: 500 },
+  { type: 'output', text: '' },
+  { type: 'output', html: '<span class="t-muted">[████████░░░░░░░░] CPU  34.2%    [██████░░░░░░░░░░] MEM  22.1%</span>' },
+  { type: 'output', text: '' },
+  { type: 'output', html: '<span class="t-muted">PID   USER   CPU%  MEM%  COMMAND</span>' },
+  { type: 'output', text: '1847  root   12.4   2.1  /usr/sbin/nginx' },
+  { type: 'output', text: '2341  app    44.2   8.7  node server.js' },
+  { type: 'pause', ms: 1200 },
+  { type: 'prompt', user: 'admin', host: 'prod-server-01' },
+  { type: 'cursor', text: '' },
 ];
 
-let seqIdx = 0;
-let charIdx = 0;
-let phase = 'typing'; // typing | waiting | clearing | outputting
-let outIdx = 0;
-let outLineIdx = 0;
+function createPromptHTML(user, host) {
+  return '<span class="t-prompt">' + user + '@' + host + ':~$</span> ';
+}
 
-function runTerminal() {
-  const typedEl = document.getElementById('typed-text');
-  const outputEl = document.getElementById('terminal-output');
-  if (!typedEl || !outputEl) return;
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-  const seq = SEQUENCES[seqIdx % SEQUENCES.length];
-
-  if (phase === 'typing') {
-    if (charIdx <= seq.cmd.length) {
-      typedEl.textContent = seq.cmd.slice(0, charIdx++);
-      setTimeout(runTerminal, 55);
-    } else {
-      phase = 'waiting';
-      setTimeout(runTerminal, 600);
-    }
-  } else if (phase === 'waiting') {
-    phase = 'outputting';
-    outIdx = 0;
-    setTimeout(runTerminal, 100);
-  } else if (phase === 'outputting') {
-    if (outIdx < seq.out.length) {
-      const line = document.createElement('div');
-      line.innerHTML = seq.out[outIdx++];
-      outputEl.appendChild(line);
-      setTimeout(runTerminal, 280);
-    } else {
-      phase = 'clearing';
-      setTimeout(runTerminal, 2800);
-    }
-  } else if (phase === 'clearing') {
-    typedEl.textContent = '';
-    outputEl.innerHTML = '';
-    charIdx = 0;
-    outIdx = 0;
-    phase = 'typing';
-    seqIdx++;
-    setTimeout(runTerminal, 400);
+async function typeText(text, container) {
+  for (let i = 0; i < text.length; i++) {
+    const charNode = document.createTextNode(text[i]);
+    container.insertBefore(charNode, cursorEl);
+    const delay = 30 + Math.random() * 50;
+    await sleep(delay);
   }
 }
 
-// ── Init ──
+async function runTerminal() {
+  terminalBody.innerHTML = '';
+  terminalBody.appendChild(cursorEl);
+
+  let currentLine = null;
+
+  for (const step of script) {
+    if (step.type === 'prompt') {
+      const line = document.createElement('div');
+      line.innerHTML = createPromptHTML(step.user, step.host);
+      terminalBody.insertBefore(line, cursorEl);
+      line.appendChild(cursorEl);
+      currentLine = line;
+      await sleep(200);
+    } else if (step.type === 'type') {
+      if (prefersReducedMotion) {
+        const textNode = document.createTextNode(step.text);
+        currentLine.insertBefore(textNode, cursorEl);
+      } else {
+        await typeText(step.text, currentLine);
+      }
+      await sleep(300);
+      terminalBody.appendChild(cursorEl);
+    } else if (step.type === 'output') {
+      const line = document.createElement('div');
+      if (step.html) {
+        line.innerHTML = step.html;
+      } else {
+        line.textContent = step.text;
+      }
+      terminalBody.insertBefore(line, cursorEl);
+      await sleep(40);
+    } else if (step.type === 'pause') {
+      if (!prefersReducedMotion) {
+        await sleep(step.ms);
+      }
+    } else if (step.type === 'cursor') {
+      if (currentLine) {
+        currentLine.appendChild(cursorEl);
+      }
+    }
+  }
+
+  await sleep(3000);
+  terminalWindow.style.transition = 'opacity 600ms ease';
+  terminalWindow.style.opacity = '0';
+  await sleep(700);
+  terminalWindow.style.opacity = '1';
+  runTerminal();
+}
+
+function initTerminal() {
+  setTimeout(() => {
+    terminalWindow.classList.add('visible');
+    setTimeout(() => {
+      runTerminal();
+    }, 600);
+  }, 400);
+}
+
+/* ==========================================================
+   INTERSECTION OBSERVER — REVEAL ANIMATIONS
+   ========================================================== */
+const featureRows = document.querySelectorAll('.feature-row');
+const githubSection = document.getElementById('github-section');
+
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      if (entry.target.classList.contains('feature-row')) {
+        const index = Array.from(featureRows).indexOf(entry.target);
+        const delay = index * 40;
+        entry.target.style.transitionDelay = delay + 'ms';
+      }
+      entry.target.classList.add('revealed');
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, {
+  threshold: 0.15,
+  rootMargin: '0px 0px -40px 0px'
+});
+
+featureRows.forEach(row => revealObserver.observe(row));
+if (githubSection) revealObserver.observe(githubSection);
+
+/* ==========================================================
+   INIT
+   ========================================================== */
 window.addEventListener('DOMContentLoaded', () => {
   loadRelease();
-  setTimeout(runTerminal, 800);
+  
+  if (prefersReducedMotion) {
+    terminalWindow.classList.add('visible');
+    runTerminal();
+    featureRows.forEach(row => row.classList.add('revealed'));
+    if (githubSection) githubSection.classList.add('revealed');
+  } else {
+    initTerminal();
+  }
 });
