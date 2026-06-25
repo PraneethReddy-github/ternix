@@ -69,7 +69,7 @@ class NativeClientServiceImpl {
       // Pre-stash the credential so mstsc doesn't prompt.
       if (user && password) {
         await new Promise<void>((res) => {
-          const targetUser = domain ? `${domain}\\${user}` : `.\\${user}`
+          const targetUser = domain ? `${domain}\\${user}` : user
           const ck = spawn('cmdkey', [`/generic:TERMSRV/${host}`, `/user:${targetUser}`, `/pass:${password}`], { stdio: 'ignore' })
           ck.on('close', () => res())
           ck.on('error', () => res())
