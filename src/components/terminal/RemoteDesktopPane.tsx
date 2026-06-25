@@ -84,7 +84,11 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
           const guacd = await window.ternix.remote.guacdStatus()
           if (disposed) return
           if (!guacd.available) {
-            update('error', `guacd is not reachable at ${guacd.host}:${guacd.port}. Start the guacd daemon, or open in the native client below.`)
+            const isWin = navigator.userAgent.toLowerCase().includes('windows')
+            const msg = isWin
+              ? `guacd is not reachable at ${guacd.host}:${guacd.port}.\n\nIn-app RDP requires the guacd daemon, which is not native to Windows. Please click "Open in native client" below.`
+              : `guacd is not reachable at ${guacd.host}:${guacd.port}. Start the guacd daemon, or open in the native client below.`
+            update('error', msg)
             return
           }
           const { wsUrl, token } = await window.ternix.remote.openRdp(pane.id, pane.sessionId!, width, height)
