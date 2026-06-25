@@ -29,8 +29,14 @@ export default defineConfig({
   renderer: {
     root: '.',
     build: {
+      target: 'esnext',
       rollupOptions: {
         input: { index: resolve(__dirname, 'index.html') }
+      }
+    },
+    optimizeDeps: {
+      esbuildOptions: {
+        target: 'esnext'
       }
     },
     resolve: {

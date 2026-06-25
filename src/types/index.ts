@@ -184,6 +184,23 @@ export interface SpawnResult {
   banner?: string
 }
 
+export interface VncOpenResult {
+  protocol: 'vnc'
+  wsUrl: string
+  password: string | null
+}
+
+export interface RdpOpenResult {
+  protocol: 'rdp'
+  wsUrl: string
+  token: string
+}
+export interface GuacdStatus {
+  available: boolean
+  host: string
+  port: number
+}
+
 export interface HostKeyPrompt {
   tabId: string
   host: string

@@ -1,5 +1,6 @@
 import type { Tab } from '@shared/ui'
 import { TerminalPane } from './TerminalPane'
+import { RemoteDesktopPane } from './RemoteDesktopPane'
 
 /** Gap (px) drawn between panes — the container's border color shows through. */
 const GAP = 1
@@ -42,9 +43,14 @@ export function SplitLayout({ tab }: { tab: Tab }) {
           width: `calc(${rect.w * 100}% - ${gap}px)`,
           height: `calc(${rect.h * 100}% - ${gap}px)`
         }
+        const isRemoteDesktop = pane.protocol === 'rdp' || pane.protocol === 'vnc'
         return (
           <div key={pane.id} className="min-w-0 min-h-0 bg-bg" style={style}>
-            <TerminalPane tab={tab} pane={pane} active={pane.id === activePaneId} />
+            {isRemoteDesktop ? (
+              <RemoteDesktopPane tab={tab} pane={pane} active={pane.id === activePaneId} />
+            ) : (
+              <TerminalPane tab={tab} pane={pane} active={pane.id === activePaneId} />
+            )}
           </div>
         )
       })}

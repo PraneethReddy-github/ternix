@@ -52,7 +52,8 @@ export function registerTerminalHandlers(): void {
         }
         case 'rdp':
         case 'vnc':
-          return { tabId, protocol: session.protocol, ok: false, error: `${session.protocol.toUpperCase()} is handled by a dedicated view (Phase 4).` }
+          // RDP/VNC are rendered by RemoteDesktopPane via the `remote:*` IPC, not as a terminal.
+          return { tabId, protocol: session.protocol, ok: false, error: `${session.protocol.toUpperCase()} is rendered in a remote-desktop pane, not a terminal.` }
         default:
           return { tabId, protocol: session.protocol, ok: false, error: 'Unsupported protocol' }
       }

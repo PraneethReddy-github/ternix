@@ -1,8 +1,16 @@
-import { Section, Row, ToggleSetting, SelectSetting } from './SettingControls'
+import { Section, Row, ToggleSetting, SelectSetting, TextSetting, NumberSetting } from './SettingControls'
 
 export function AdvancedSettings() {
   return (
     <div>
+      <Section title="Remote desktop (RDP)">
+        <Row label="guacd host" hint="The Guacamole daemon that powers embedded RDP">
+          <TextSetting k="rdp.guacdHost" placeholder="127.0.0.1" width={160} />
+        </Row>
+        <Row label="guacd port">
+          <NumberSetting k="rdp.guacdPort" min={1} max={65535} />
+        </Row>
+      </Section>
       <Section title="Rendering">
         <Row label="Hardware acceleration" hint="GPU rendering for xterm.js"><ToggleSetting k="advanced.hardwareAcceleration" /></Row>
         <Row label="Renderer type">

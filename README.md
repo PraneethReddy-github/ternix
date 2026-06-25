@@ -36,7 +36,8 @@ Unlike cloud-based session managers, Ternix stores **everything locally** in a S
 | **Telnet** | RFC 854-compliant Telnet with full IAC option negotiation (NAWS, terminal-type, suppress-GA, echo), auto-login on prompt detection |
 | **Serial / COM** | Native `serialport` integration supporting full serial config: baud rate (300–921600), data bits, stop bits, parity (none/even/odd/mark/space), flow control (RTS/CTS, XON/XOFF) |
 | **Local Shell** | Native PTY shell sessions using `node-pty` with full POSIX shell support |
-| **RDP / VNC** | Session metadata saved for future viewer binary integration (Phase 4) |
+| **VNC** | Embedded in-pane VNC viewer (noVNC) over a loopback WebSocket↔TCP bridge — VNC-auth supported, scales to the pane. "Open in native client" fallback (Screen Sharing / vncviewer / Remmina) |
+| **RDP** | Embedded in-pane RDP viewer (Guacamole) via a local `guacd` daemon — supports modern Windows incl. NLA/CredSSP. "Open in native client" fallback (mstsc / xfreerdp / Microsoft Remote Desktop) when guacd is unavailable. Configure the guacd host/port in Settings → Advanced |
 
 ### 🖥️ Terminal Features
 

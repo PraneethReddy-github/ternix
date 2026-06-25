@@ -22,6 +22,9 @@ import type {
   KeyboardInteractivePrompt,
   CredentialRequest,
   CredentialResponse,
+  VncOpenResult,
+  RdpOpenResult,
+  GuacdStatus,
   ImportSource,
   ExportTarget,
   ImportResult,
@@ -59,6 +62,13 @@ export interface TernixApi {
     onNeedsCredentials(cb: (req: CredentialRequest) => void): () => void
     respondCredentials(tabId: string, response: CredentialResponse): void
     latency(tabId: string): Promise<number | null>
+  }
+  remote: {
+    openVnc(tabId: string, sessionId: number): Promise<VncOpenResult>
+    openRdp(tabId: string, sessionId: number, width: number, height: number): Promise<RdpOpenResult>
+    guacdStatus(): Promise<GuacdStatus>
+    launchNative(sessionId: number): Promise<string>
+    close(tabId: string): Promise<void>
   }
   sftp: {
     open(tabId: string): Promise<void>
