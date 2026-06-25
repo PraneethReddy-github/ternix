@@ -66,7 +66,7 @@ class NativeClientServiceImpl {
     const height = session.rdp_height || 1080
 
     if (process.platform === 'win32') {
-      // Pre-stash the credential so mstsc doesn't prompt, then launch via a .rdp file.
+      // Pre-stash the credential so mstsc doesn't prompt.
       if (user && password) {
         await new Promise<void>((res) => {
           const ck = spawn('cmdkey', [`/generic:TERMSRV/${host}`, `/user:${domain ? domain + '\\' : ''}${user}`, `/pass:${password}`], { stdio: 'ignore' })
@@ -74,17 +74,7 @@ class NativeClientServiceImpl {
           ck.on('error', () => res())
         })
       }
-      const rdpFile = join(tmpdir(), `ternix-${Date.now()}.rdp`)
-      const lines = [
-        `full address:s:${host}:${port}`,
-        `username:s:${domain ? domain + '\\' : ''}${user}`,
-        `desktopwidth:i:${width}`,
-        `desktopheight:i:${height}`,
-        `screen mode id:i:1`,
-        `prompt for credentials:i:0`
-      ]
-      writeFileSync(rdpFile, lines.join('\r\n'), 'utf8')
-      return trySpawn([{ cmd: 'mstsc', args: [rdpFile] }])
+      return trySpawn([{ cmd: 'mstsc', args: [`/v:${host}:${port}`, `/w:${width}`, `/h:${height}`] }])
     }
 
     if (process.platform === 'darwin') {
