@@ -28,6 +28,7 @@ export const SETTING_DEFAULTS: SettingsMap = {
   'appearance.cursorBlink': 'true',
   'appearance.transparency': '0',
   'appearance.compactMode': 'false',
+  'appearance.showClock': 'false',
   'appearance.customCss': '',
   'ssh.defaultPort': '22',
   'ssh.defaultUsername': '',

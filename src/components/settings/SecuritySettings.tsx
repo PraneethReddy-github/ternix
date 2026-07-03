@@ -14,32 +14,68 @@ export function SecuritySettings() {
     refresh()
   }, [])
 
-  const setMaster = async () => {
-    const oldPw = status?.hasMasterPassword ? window.prompt('Current master password:') : null
-    if (status?.hasMasterPassword && oldPw === null) return
-    const newPw = window.prompt('New master password:')
-    if (!newPw) return
-    const confirm = window.prompt('Confirm new master password:')
-    if (newPw !== confirm) return notify('Passwords do not match', 'error')
-    try {
-      await window.ternix.vault.setMasterPassword(oldPw, newPw)
-      notify('Master password set — all secrets re-encrypted', 'success')
-      refresh()
-    } catch (e: any) {
-      notify(e.message, 'error')
+  const setMaster = () => {
+    const askNew = (oldPw: string | null) => {
+      useUiStore.getState().openDialog({
+        kind: 'prompt',
+        title: 'New master password',
+        label: 'New password',
+        password: true,
+        onSubmit: (newPw) => {
+          if (!newPw) return
+          useUiStore.getState().openDialog({
+            kind: 'prompt',
+            title: 'Confirm master password',
+            label: 'Re-enter password',
+            password: true,
+            onSubmit: async (confirm) => {
+              if (newPw !== confirm) return notify('Passwords do not match', 'error')
+              try {
+                await window.ternix.vault.setMasterPassword(oldPw, newPw)
+                notify('Master password set — all secrets re-encrypted', 'success')
+                refresh()
+              } catch (e: any) {
+                notify(e.message, 'error')
+              }
+            }
+          })
+        }
+      })
+    }
+
+    if (status?.hasMasterPassword) {
+      useUiStore.getState().openDialog({
+        kind: 'prompt',
+        title: 'Current master password',
+        label: 'Current password',
+        password: true,
+        onSubmit: (oldPw) => {
+          if (oldPw === null || oldPw === undefined) return
+          askNew(oldPw)
+        }
+      })
+    } else {
+      askNew(null)
     }
   }
 
-  const removeMaster = async () => {
-    const pw = window.prompt('Current master password to remove it:')
-    if (!pw) return
-    try {
-      await window.ternix.vault.removeMasterPassword(pw)
-      notify('Master password removed — using OS keychain', 'success')
-      refresh()
-    } catch (e: any) {
-      notify(e.message, 'error')
-    }
+  const removeMaster = () => {
+    useUiStore.getState().openDialog({
+      kind: 'prompt',
+      title: 'Remove master password',
+      label: 'Current password',
+      password: true,
+      onSubmit: async (pw) => {
+        if (!pw) return
+        try {
+          await window.ternix.vault.removeMasterPassword(pw)
+          notify('Master password removed — using OS keychain', 'success')
+          refresh()
+        } catch (e: any) {
+          notify(e.message, 'error')
+        }
+      }
+    })
   }
 
   return (

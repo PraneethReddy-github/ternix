@@ -34,7 +34,10 @@ function ContextMenuView({ x, y, items, onClose }: ContextMenuState & { onClose:
   const [pos, setPos] = useState({ x, y })
 
   useEffect(() => {
-    const onDown = () => onClose()
+    const onDown = (e: MouseEvent) => {
+      if (ref.current?.contains(e.target as Node)) return
+      onClose()
+    }
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('mousedown', onDown)
     window.addEventListener('keydown', onKey)

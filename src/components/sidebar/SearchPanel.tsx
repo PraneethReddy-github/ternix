@@ -35,7 +35,7 @@ export function SearchPanel() {
       <div className="flex-1 overflow-y-auto p-2">
         {sessionHits.length > 0 && <div className="text-[10px] uppercase text-muted mb-1">Sessions</div>}
         {sessionHits.map((s) => (
-          <button key={`s${s.id}`} className="w-full flex items-center gap-2 px-2 py-1 rounded-input hover:bg-surface-2 text-left" onDoubleClick={() => connectSession(s, useTabStore)} onClick={() => connectSession(s, useTabStore)}>
+          <button key={`s${s.id}`} className="w-full flex items-center gap-2 px-2 py-1 rounded-input hover:bg-surface-2 text-left" onDoubleClick={() => connectSession(s, useTabStore)}>
             <ProtocolIcon protocol={s.protocol} size={13} />
             <span className="text-[13px] truncate">{s.name}</span>
             <span className="text-[11px] text-muted truncate">{s.host}</span>

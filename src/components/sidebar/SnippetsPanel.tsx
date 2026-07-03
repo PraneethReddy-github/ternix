@@ -6,16 +6,36 @@ import { useUiStore } from '@/store/useUiStore'
 import { PanelHeader } from '@/components/layout/Sidebar'
 import { fuzzyFilter } from '@/utils/fuzzy'
 
-/** Expand ${VAR} placeholders by prompting the user for each unique variable. */
-export function expandSnippet(command: string): string | null {
+/**
+ * Expand ${VAR} placeholders by prompting the user for each unique variable.
+ * Uses the app's PromptDialog (since window.prompt is unsupported in Electron).
+ * Calls `onDone` with the expanded command when all variables are filled.
+ */
+export function expandSnippet(command: string, onDone: (expanded: string) => void): void {
   const vars = [...new Set([...command.matchAll(/\$\{(\w+)\}/g)].map((m) => m[1]))]
-  let out = command
-  for (const v of vars) {
-    const val = window.prompt(`Value for \${${v}}`)
-    if (val === null) return null
-    out = out.replaceAll(`\${${v}}`, val)
+  if (vars.length === 0) {
+    onDone(command)
+    return
   }
-  return out
+  const values: Record<string, string> = {}
+  const askNext = (index: number) => {
+    if (index >= vars.length) {
+      let out = command
+      for (const v of vars) out = out.replaceAll(`\${${v}}`, values[v])
+      onDone(out)
+      return
+    }
+    useUiStore.getState().openDialog({
+      kind: 'prompt',
+      title: `Snippet variable`,
+      label: `Value for \${${vars[index]}}`,
+      onSubmit: (val) => {
+        values[vars[index]] = val
+        askNext(index + 1)
+      }
+    })
+  }
+  askNext(0)
 }
 
 export function SnippetsPanel() {
@@ -34,9 +54,9 @@ export function SnippetsPanel() {
   const send = (snip: Snippet) => {
     const pane = useTabStore.getState().getActivePane()
     if (!pane) return notify('No active terminal', 'error')
-    const expanded = expandSnippet(snip.command)
-    if (expanded === null) return
-    window.ternix.terminal.write(pane.id, expanded + '\r')
+    expandSnippet(snip.command, (expanded) => {
+      window.ternix.terminal.write(pane.id, expanded + '\r')
+    })
   }
 
   const remove = (snip: Snippet) =>
@@ -47,10 +67,8 @@ export function SnippetsPanel() {
     const path = await window.ternix.system.saveFile('snippets.json', json)
     if (path) notify('Snippets exported', 'success')
   }
-  const importJson = async () => {
-    const path = await window.ternix.system.selectFile([{ name: 'JSON', extensions: ['json'] }])
-    if (!path) return
-    notify('Use Export/Import dialog for files; pasting supported in editor', 'info')
+  const importJson = () => {
+    openDialog({ kind: 'exportImport' })
   }
 
   const filtered = fuzzyFilter(filter, snippets, (s) => `${s.name} ${s.description ?? ''} ${s.tags.join(' ')}`)

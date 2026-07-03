@@ -71,18 +71,24 @@ export function SftpPanel() {
     }
   }
 
-  const mkdir = (side: 'local' | 'remote') => async () => {
-    const name = window.prompt('New folder name')
-    if (!name) return
-    const pane = side === 'local' ? local : remote
-    const target = side === 'local' ? localJoin(pane.path, name) : posixJoin(pane.path, name)
-    try {
-      if (side === 'local') await window.ternix.localfs.mkdir(target)
-      else await window.ternix.sftp.mkdir(tabId, target)
-      pane.refresh()
-    } catch (e: any) {
-      notify(e.message, 'error')
-    }
+  const mkdir = (side: 'local' | 'remote') => () => {
+    useUiStore.getState().openDialog({
+      kind: 'prompt',
+      title: 'New folder',
+      label: 'Folder name',
+      onSubmit: async (name) => {
+        if (!name) return
+        const pane = side === 'local' ? local : remote
+        const target = side === 'local' ? localJoin(pane.path, name) : posixJoin(pane.path, name)
+        try {
+          if (side === 'local') await window.ternix.localfs.mkdir(target)
+          else await window.ternix.sftp.mkdir(tabId, target)
+          pane.refresh()
+        } catch (e: any) {
+          notify(e.message, 'error')
+        }
+      }
+    })
   }
 
   const contextItems = (entry: SftpEntry, side: 'local' | 'remote'): MenuItem[] => {
@@ -98,18 +104,25 @@ export function SftpPanel() {
     items.push({ label: 'Copy path', onClick: () => { window.ternix.system.writeClipboard(entry.path); notify('Path copied', 'success') } })
     items.push({
       label: 'Rename',
-      onClick: async () => {
-        const name = window.prompt('Rename to', entry.name)
-        if (!name) return
-        const dir = side === 'local' ? entry.path.slice(0, entry.path.length - entry.name.length) : entry.path.replace(/[^/]+$/, '')
-        const next = side === 'local' ? localJoin(dir, name) : posixJoin(dir.replace(/\/$/, ''), name)
-        try {
-          if (side === 'local') await window.ternix.localfs.rename(entry.path, next)
-          else await window.ternix.sftp.rename(tabId, entry.path, next)
-          pane.refresh()
-        } catch (e: any) {
-          notify(e.message, 'error')
-        }
+      onClick: () => {
+        useUiStore.getState().openDialog({
+          kind: 'prompt',
+          title: 'Rename',
+          label: 'New name',
+          defaultValue: entry.name,
+          onSubmit: async (name) => {
+            if (!name) return
+            const dir = side === 'local' ? entry.path.slice(0, entry.path.length - entry.name.length) : entry.path.replace(/[^/]+$/, '')
+            const next = side === 'local' ? localJoin(dir, name) : posixJoin(dir.replace(/\/$/, ''), name)
+            try {
+              if (side === 'local') await window.ternix.localfs.rename(entry.path, next)
+              else await window.ternix.sftp.rename(tabId, entry.path, next)
+              pane.refresh()
+            } catch (e: any) {
+              notify(e.message, 'error')
+            }
+          }
+        })
       }
     })
     items.push({ separator: true })

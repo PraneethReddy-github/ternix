@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTabStore } from '@/store/useTabStore'
 import { useSessionStore } from '@/store/useSessionStore'
+import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
 import { useContextMenu } from '@/components/ui/ContextMenu'
 import { ProtocolIcon } from '@/components/sidebar/ProtocolIcon'
@@ -78,7 +79,7 @@ export function TabBar() {
   }
 
   const handleNewTab = () => {
-    const proto = window.localStorage.getItem('tx.newTabProtocol')
+    const proto = useSettingsStore.getState().get('general.newTabProtocol')
     if (proto === 'ssh') openDialog({ kind: 'newSession' })
     else newTab({ protocol: 'local', title: 'Local Shell' })
   }
@@ -159,8 +160,22 @@ export function TabBar() {
 }
 
 function promptRename(tab: Tab) {
-  const name = window.prompt('Rename tab', tab.title)
-  if (name) useTabStore.getState().renameTab(tab.id, name)
+  useUiStore.getState().openDialog({
+    kind: 'prompt',
+    title: 'Rename tab',
+    label: 'New name',
+    defaultValue: tab.title,
+    onSubmit: (name) => {
+      if (!name) return
+      useTabStore.getState().renameTab(tab.id, name)
+      // Also rename the underlying saved session if one is linked.
+      const pane = tab.panes.find((p) => p.id === tab.activePaneId) ?? tab.panes[0]
+      if (pane?.sessionId != null) {
+        const session = useSessionStore.getState().sessions.find((x) => x.id === pane.sessionId)
+        if (session) useSessionStore.getState().updateSession(pane.sessionId, { ...session, name })
+      }
+    }
+  })
 }
 
 /**
