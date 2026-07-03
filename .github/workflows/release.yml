@@ -47,7 +47,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
-          path: dist-electron/win/*.exe
+          path: |
+            dist-electron/win/*.exe
+            dist-electron/win/latest.yml
           retention-days: 1
 
   # ─────────────────────────────────────────────
@@ -88,6 +90,7 @@ jobs:
           path: |
             dist-electron/linux/*.AppImage
             dist-electron/linux/*.deb
+            dist-electron/linux/latest*.yml
           retention-days: 1
 
   # ─────────────────────────────────────────────
