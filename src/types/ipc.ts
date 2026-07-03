@@ -147,6 +147,7 @@ export interface TernixApi {
     unlock(password: string): Promise<boolean>
     lock(): Promise<void>
     removeMasterPassword(currentPw: string): Promise<void>
+    activity(): Promise<void>
     onLocked(cb: () => void): () => void
   }
   themes: {

@@ -29,7 +29,17 @@ export function ThemeEditorDialog({ baseId, onClose }: { baseId?: string; onClos
   const importJson = async () => {
     const path = await window.ternix.system.selectFile([{ name: 'JSON', extensions: ['json'] }])
     if (!path) return
-    notify('Paste theme JSON support coming via Export/Import', 'info')
+    try {
+      const parsed = JSON.parse(await window.ternix.system.readFile(path)) as Partial<TerminalTheme>
+      if (!parsed || typeof parsed !== 'object' || !parsed.background || !parsed.foreground || !parsed.ui) {
+        return notify('Not a valid Ternix theme file', 'error')
+      }
+      // Give it a fresh id so importing never overwrites an existing theme.
+      setTheme({ ...base, ...parsed, id: `custom-${Date.now()}`, name: parsed.name ?? `${base.name} (imported)` })
+      notify('Theme imported — review and Save', 'success')
+    } catch (e: any) {
+      notify(`Import failed: ${e.message}`, 'error')
+    }
   }
 
   const exportJson = async () => {

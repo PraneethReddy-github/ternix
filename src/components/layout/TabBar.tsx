@@ -167,13 +167,8 @@ function promptRename(tab: Tab) {
     defaultValue: tab.title,
     onSubmit: (name) => {
       if (!name) return
+      // Renames the tab label only — never the underlying saved session.
       useTabStore.getState().renameTab(tab.id, name)
-      // Also rename the underlying saved session if one is linked.
-      const pane = tab.panes.find((p) => p.id === tab.activePaneId) ?? tab.panes[0]
-      if (pane?.sessionId != null) {
-        const session = useSessionStore.getState().sessions.find((x) => x.id === pane.sessionId)
-        if (session) useSessionStore.getState().updateSession(pane.sessionId, { ...session, name })
-      }
     }
   })
 }

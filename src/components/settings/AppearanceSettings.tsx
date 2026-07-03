@@ -48,7 +48,7 @@ export function AppearanceSettings() {
       <Section title="Font">
         <Row label="Font family"><TextSetting k="appearance.fontFamily" width={280} /></Row>
         <Row label="Font size"><NumberSetting k="appearance.fontSize" min={8} max={32} /></Row>
-        <Row label="Ligatures"><ToggleSetting k="appearance.ligatures" /></Row>
+        <Row label="Ligatures" hint="Font ligatures (Fira Code / JetBrains Mono); applies to new tabs"><ToggleSetting k="appearance.ligatures" /></Row>
         <Row label="Line height"><TextSetting k="appearance.lineHeight" width={80} /></Row>
         <Row label="Letter spacing"><NumberSetting k="appearance.letterSpacing" /></Row>
       </Section>
@@ -58,7 +58,6 @@ export function AppearanceSettings() {
           <SelectSetting k="appearance.cursorStyle" options={[{ value: 'block', label: 'Block' }, { value: 'underline', label: 'Underline' }, { value: 'bar', label: 'Bar' }]} />
         </Row>
         <Row label="Cursor blink"><ToggleSetting k="appearance.cursorBlink" /></Row>
-        <Row label="Window transparency" hint="0–100% (macOS/Windows)"><NumberSetting k="appearance.transparency" min={0} max={100} /></Row>
         <Row label="Compact mode" hint="Smaller tab bar, hide per-pane toolbar"><ToggleSetting k="appearance.compactMode" /></Row>
         <Row label="Show clock in status bar"><ToggleSetting k="appearance.showClock" /></Row>
       </Section>

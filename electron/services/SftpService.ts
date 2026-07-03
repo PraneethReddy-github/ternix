@@ -1,9 +1,10 @@
 import crypto from 'node:crypto'
-import { createReadStream, createWriteStream, statSync } from 'node:fs'
+import { createReadStream, createWriteStream, statSync, utimesSync } from 'node:fs'
 import { basename, posix } from 'node:path'
 import type { SFTPWrapper, Stats } from 'ssh2'
 import type { SftpEntry, TransferProgress } from '@shared/index'
 import { ConnectionManager } from './ConnectionManager'
+import { settingsRepo } from '../db/repo'
 import { Bus } from './bus'
 
 function modeToPermissions(mode: number): string {
@@ -33,6 +34,28 @@ interface ActiveTransfer {
 class SftpServiceImpl {
   private wrappers = new Map<string, SFTPWrapper>()
   private transfers = new Map<string, ActiveTransfer>()
+
+  // Concurrency gate honouring transfer.maxConcurrent.
+  private active = 0
+  private waiters: (() => void)[] = []
+  private maxConcurrent(): number {
+    return Math.max(1, Number(settingsRepo.get('transfer.maxConcurrent') ?? '3') || 3)
+  }
+  private async acquire(): Promise<void> {
+    if (this.active < this.maxConcurrent()) {
+      this.active++
+      return
+    }
+    await new Promise<void>((res) => this.waiters.push(res))
+    this.active++
+  }
+  private release(): void {
+    this.active--
+    this.waiters.shift()?.()
+  }
+  private preserveTimestamps(): boolean {
+    return settingsRepo.get('transfer.preserveTimestamps') !== 'false'
+  }
 
   private async wrapper(tabId: string): Promise<SFTPWrapper> {
     const existing = this.wrappers.get(tabId)
@@ -122,19 +145,38 @@ class SftpServiceImpl {
   // ---- transfers ----
 
   async download(tabId: string, remotePath: string, localPath: string): Promise<string> {
-    const sftp = await this.wrapper(tabId)
-    const total = (await this.stat(tabId, remotePath)).size
-    const read = sftp.createReadStream(remotePath)
-    const write = createWriteStream(localPath)
-    return this.runTransfer('download', basename(remotePath), localPath, remotePath, total, read, write)
+    await this.acquire()
+    try {
+      const sftp = await this.wrapper(tabId)
+      const st = await this.stat(tabId, remotePath)
+      const read = sftp.createReadStream(remotePath)
+      const write = createWriteStream(localPath)
+      const result = await this.runTransfer('download', basename(remotePath), localPath, remotePath, st.size, read, write)
+      if (this.preserveTimestamps() && st.modified) {
+        try { utimesSync(localPath, new Date(st.modified), new Date(st.modified)) } catch { /* best effort */ }
+      }
+      return result
+    } finally {
+      this.release()
+    }
   }
 
   async upload(tabId: string, localPath: string, remotePath: string): Promise<string> {
-    const sftp = await this.wrapper(tabId)
-    const total = statSync(localPath).size
-    const read = createReadStream(localPath)
-    const write = sftp.createWriteStream(remotePath)
-    return this.runTransfer('upload', basename(localPath), localPath, remotePath, total, read, write)
+    await this.acquire()
+    try {
+      const sftp = await this.wrapper(tabId)
+      const st = statSync(localPath)
+      const read = createReadStream(localPath)
+      const write = sftp.createWriteStream(remotePath)
+      const result = await this.runTransfer('upload', basename(localPath), localPath, remotePath, st.size, read, write)
+      if (this.preserveTimestamps()) {
+        const t = Math.floor(st.mtimeMs / 1000)
+        try { await new Promise<void>((res) => sftp.utimes(remotePath, t, t, () => res())) } catch { /* best effort */ }
+      }
+      return result
+    } finally {
+      this.release()
+    }
   }
 
   pause(transferId: string): void {

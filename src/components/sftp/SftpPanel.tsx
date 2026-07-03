@@ -4,6 +4,7 @@ import type { SftpEntry } from '@shared/index'
 import type { MenuItem } from '@/components/ui/ContextMenu'
 import { useTabStore } from '@/store/useTabStore'
 import { useUiStore } from '@/store/useUiStore'
+import { useSettingsStore } from '@/store/useSettingsStore'
 import { usePane } from '@/hooks/useSftp'
 import { FileList, type DragPayload } from './FileList'
 import { PermissionsEditor } from './PermissionsEditor'
@@ -35,19 +36,50 @@ export function SftpPanel() {
     )
   }
 
+  // Apply transfer.conflict when the destination already contains `name`.
+  // Returns the name to write as, or null to skip the file.
+  const resolveName = async (existing: Set<string>, name: string): Promise<string | null> => {
+    if (!existing.has(name)) return name
+    const policy = useSettingsStore.getState().get('transfer.conflict')
+    if (policy === 'overwrite') return name
+    if (policy === 'skip') return null
+    if (policy === 'rename') {
+      const dot = name.lastIndexOf('.')
+      const stem = dot > 0 ? name.slice(0, dot) : name
+      const ext = dot > 0 ? name.slice(dot) : ''
+      let i = 1
+      while (existing.has(`${stem} (${i})${ext}`)) i++
+      return `${stem} (${i})${ext}`
+    }
+    // prompt
+    return new Promise((res) => {
+      useUiStore.getState().openDialog({
+        kind: 'confirm',
+        title: 'File already exists',
+        message: `"${name}" already exists in the destination. Overwrite it?`,
+        onConfirm: () => res(name),
+        onCancel: () => res(null)
+      })
+    })
+  }
+
   const transfer = async (payload: DragPayload, targetDir: string) => {
     try {
       if (payload.side === 'local') {
         // local → remote (upload)
-        const dest = posixJoin(targetDir, payload.entry.name)
+        const existing = new Set((await window.ternix.sftp.listDir(tabId, targetDir)).map((e) => e.name))
+        const finalName = await resolveName(existing, payload.entry.name)
+        if (!finalName) return notify(`Skipped ${payload.entry.name}`, 'info')
         notify(`Uploading ${payload.entry.name}…`, 'info')
-        await window.ternix.sftp.upload(tabId, payload.entry.path, dest)
+        await window.ternix.sftp.upload(tabId, payload.entry.path, posixJoin(targetDir, finalName))
         remote.refresh()
       } else {
         // remote → local (download)
-        const dest = localJoin(targetDir, payload.entry.name)
+        const existing = new Set((await window.ternix.localfs.listDir(targetDir)).map((e) => e.name))
+        const finalName = await resolveName(existing, payload.entry.name)
+        if (!finalName) return notify(`Skipped ${payload.entry.name}`, 'info')
         notify(`Downloading ${payload.entry.name}…`, 'info')
-        await window.ternix.sftp.download(tabId, payload.entry.path, dest)
+        await window.ternix.sftp.download(tabId, payload.entry.path, localJoin(targetDir, finalName))
         local.refresh()
       }
     } catch (e: any) {
@@ -95,7 +127,7 @@ export function SftpPanel() {
     const pane = side === 'local' ? local : remote
     const items: MenuItem[] = []
     if (side === 'remote') {
-      items.push({ label: 'Download', onClick: () => transfer({ side: 'remote', entry }, local.path) })
+      items.push({ label: 'Download', onClick: () => transfer({ side: 'remote', entry }, useSettingsStore.getState().get('transfer.downloadDir') || local.path) })
       items.push({ label: 'Edit permissions (chmod)', onClick: () => setChmodTarget(entry) })
     } else {
       items.push({ label: 'Upload', onClick: () => transfer({ side: 'local', entry }, remote.path) })

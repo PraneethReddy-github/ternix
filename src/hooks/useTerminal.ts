@@ -10,6 +10,23 @@ import { useThemeStore } from '@/store/useThemeStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { toXtermTheme } from '@/themes'
 
+let audioCtx: AudioContext | null = null
+/** Short terminal bell tone via WebAudio (no asset needed). */
+function playBeep() {
+  try {
+    audioCtx ??= new AudioContext()
+    const osc = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
+    osc.frequency.value = 880
+    gain.gain.value = 0.05
+    osc.connect(gain).connect(audioCtx.destination)
+    osc.start()
+    osc.stop(audioCtx.currentTime + 0.12)
+  } catch {
+    /* audio unavailable */
+  }
+}
+
 export interface TerminalController {
   containerRef: React.RefObject<HTMLDivElement>
   terminal: React.MutableRefObject<Terminal | null>
@@ -77,8 +94,13 @@ export function useTerminal(pane: Pane): TerminalController {
     terminal.current = term
 
     // Optional GPU renderer.
+    // Ligatures (Fira Code / JetBrains Mono →, ⇒, ≥ …) only render in xterm's DOM
+    // renderer, which shapes real text runs. The WebGL/canvas renderers draw glyph-by-glyph
+    // and can't. The addon-ligatures package needs Node fs in the renderer (disabled here
+    // for security), so we deliver ligatures by staying on the DOM renderer when enabled.
     let isDisposed = false;
-    if (s.get('advanced.rendererType') === 'webgl' && s.getBool('advanced.hardwareAcceleration')) {
+    const ligatures = s.getBool('appearance.ligatures')
+    if (!ligatures && s.get('advanced.rendererType') === 'webgl' && s.getBool('advanced.hardwareAcceleration')) {
       import('@xterm/addon-webgl')
         .then(({ WebglAddon }) => {
           if (isDisposed) return;
@@ -110,6 +132,8 @@ export function useTerminal(pane: Pane): TerminalController {
         containerRef.current.style.transition = 'background 80ms'
         containerRef.current.style.background = 'rgba(255,255,255,0.12)'
         setTimeout(() => containerRef.current && (containerRef.current.style.background = ''), 90)
+      } else if (mode === 'audio') {
+        playBeep()
       }
     })
 
@@ -121,6 +145,37 @@ export function useTerminal(pane: Pane): TerminalController {
     const offStatus = window.ternix.terminal.onStatus(pane.id, ({ state, message }) =>
       setPaneState(pane.id, state as any, message)
     )
+    // Auto-reconnect bookkeeping. Only remote sessions auto-reconnect — respawning a
+    // local shell the user deliberately exited would be annoying.
+    let reconnectAttempts = 0
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+    // Schedule an auto-reconnect if enabled and the retry budget isn't spent.
+    // Returns true if a retry was scheduled (caller then skips the manual-hint path).
+    const scheduleReconnect = (reason?: string): boolean => {
+      const st = useSettingsStore.getState()
+      if (pane.protocol === 'local' || isDisposed || !st.getBool('general.autoReconnect')) return false
+      const maxRetries = st.getNum('general.autoReconnectRetries')
+      if (reconnectAttempts >= maxRetries) return false
+      reconnectAttempts++
+      const delay = (st.getNum('general.autoReconnectDelay') || 3) * 1000
+      term.writeln(`\r\n\x1b[90m[ ${reason ?? 'disconnected'} — reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts}/${maxRetries}) ]\x1b[0m`)
+      setPaneState(pane.id, 'connecting')
+      reconnectTimer = setTimeout(() => {
+        if (isDisposed) return
+        reconnectTimer = null
+        spawnConnection()
+      }, delay)
+      return true
+    }
+
+    const failed = (msg: string, color: string) => {
+      if (scheduleReconnect(msg)) return
+      term.writeln(`\r\n${color}${msg}\x1b[0m`)
+      term.writeln(`\x1b[90m[ Press Ctrl+R to reconnect ]\x1b[0m`)
+      setPaneState(pane.id, 'error', msg)
+    }
+
     const spawnConnection = () => {
       // For local shells, honour the user's configured default shell (e.g. powershell.exe
       // on Windows, /bin/zsh on Unix). Read fresh so a settings change applies on reconnect.
@@ -131,19 +186,21 @@ export function useTerminal(pane: Pane): TerminalController {
         .spawn({ tabId: pane.id, sessionId: pane.sessionId, cols: term.cols, rows: term.rows, localShell })
         .then((res) => {
           if (!res.ok) {
-            term.writeln(`\r\n\x1b[31m${res.error ?? 'Connection failed'}\x1b[0m`)
-            term.writeln(`\x1b[90m[ Press Ctrl+R to reconnect ]\x1b[0m`)
-            setPaneState(pane.id, 'error', res.error)
+            failed(res.error ?? 'Connection failed', '\x1b[31m')
+          } else {
+            reconnectAttempts = 0 // clean connect resets the retry budget
+            // Reflect auto-recording (recording.autoRecord) so the indicator shows.
+            window.ternix.recordings
+              .isRecording(pane.id)
+              .then((rec) => rec && useTabStore.getState().setPaneRecording(pane.id, true))
+              .catch(() => {})
           }
         })
-        .catch((err) => {
-          term.writeln(`\r\n\x1b[31m${err.message}\x1b[0m`)
-          term.writeln(`\x1b[90m[ Press Ctrl+R to reconnect ]\x1b[0m`)
-          setPaneState(pane.id, 'error', err.message)
-        })
+        .catch((err) => failed(err.message, '\x1b[31m'))
     }
 
     const offExit = window.ternix.terminal.onExit(pane.id, ({ reason }) => {
+      if (scheduleReconnect(reason)) return
       term.writeln(`\r\n\x1b[90m[ ${reason ?? 'disconnected'} ]\x1b[0m`)
       term.writeln(`\x1b[90m[ Press Ctrl+R to reconnect ]\x1b[0m`)
       setPaneState(pane.id, 'disconnected', reason)
@@ -158,6 +215,7 @@ export function useTerminal(pane: Pane): TerminalController {
           if (p) { state = p.state; break; }
         }
         if (state === 'disconnected' || state === 'error') {
+          reconnectAttempts = 0 // manual reconnect gets a fresh retry budget
           term.clear()
           setPaneState(pane.id, 'connecting')
           spawnConnection()
@@ -177,6 +235,7 @@ export function useTerminal(pane: Pane): TerminalController {
 
     return () => {
       isDisposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer)
       ro.disconnect()
       inputDisposable.dispose()
       offData()

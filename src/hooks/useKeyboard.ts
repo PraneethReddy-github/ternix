@@ -63,8 +63,12 @@ export function useKeyboard(onAction: (action: string) => void) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Ignore when typing in inputs (except the palette/global combos handled below).
+      // xterm's hidden textarea (.xterm-helper-textarea) is NOT a real text field —
+      // treating it as "typing" suppressed nearly every shortcut while the terminal
+      // was focused (i.e. almost always). Exclude it so terminal-scoped shortcuts work.
       const target = e.target as HTMLElement
-      const typing = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA'
+      const inTerminal = target?.classList?.contains('xterm-helper-textarea')
+      const typing = !inTerminal && (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA')
       const combo = comboFromEvent(e)
       const bindings = loadKeybindings()
 

@@ -236,7 +236,7 @@ class SshServiceImpl {
     const cfg: ConnectConfig = {
       host: session.host ?? undefined,
       port: session.port ?? 22,
-      username: session.username ?? undefined,
+      username: session.username || settingsRepo.get('ssh.defaultUsername') || undefined,
       keepaliveInterval: (session.keepalive_interval || 30) * 1000,
       keepaliveCountMax: session.keepalive_count_max || 3,
       readyTimeout: Number(settingsRepo.get('ssh.connectTimeout') ?? '20000'),

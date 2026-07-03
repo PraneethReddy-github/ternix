@@ -5,8 +5,22 @@ import { handle, on } from './util'
 import { SerialService } from '../services/SerialService'
 import { ConnectionManager } from '../services/ConnectionManager'
 import { Bus } from '../services/bus'
+import { settingsRepo } from '../db/repo'
 
 const nodeRequire = createRequire(import.meta.url)
+
+// Auto-clear the clipboard N seconds after a copy (security.clearClipboard).
+// Only clears if the clipboard still holds what we wrote, so we never clobber
+// something the user copied elsewhere in the meantime.
+let clipboardClearTimer: NodeJS.Timeout | null = null
+function scheduleClipboardClear(copied: string): void {
+  if (clipboardClearTimer) clearTimeout(clipboardClearTimer)
+  const secs = Number(settingsRepo.get('security.clearClipboard') ?? '0') || 0
+  if (secs <= 0) return
+  clipboardClearTimer = setTimeout(() => {
+    if (clipboard.readText() === copied) clipboard.clear()
+  }, secs * 1000)
+}
 
 export function registerSystemHandlers(getWindow: () => BrowserWindow | null): void {
   // System
@@ -34,8 +48,14 @@ export function registerSystemHandlers(getWindow: () => BrowserWindow | null): v
     return res.filePath
   })
   handle<string>('system:readClipboard', () => clipboard.readText())
-  handle<void>('system:writeClipboard', (text: string) => clipboard.writeText(text))
-  handle<void>('system:writeClipboardHtml', (html: string, text: string) => clipboard.write({ html, text }))
+  handle<void>('system:writeClipboard', (text: string) => {
+    clipboard.writeText(text)
+    scheduleClipboardClear(text)
+  })
+  handle<void>('system:writeClipboardHtml', (html: string, text: string) => {
+    clipboard.write({ html, text })
+    scheduleClipboardClear(text)
+  })
   handle<NodeJS.Platform>('system:platform', () => process.platform)
   handle<string>('system:version', () => app.getVersion())
 

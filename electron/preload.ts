@@ -132,6 +132,7 @@ const api: TernixApi = {
     unlock: (password) => invoke('vault:unlock', password),
     lock: () => invoke('vault:lock'),
     removeMasterPassword: (currentPw) => invoke('vault:removeMasterPassword', currentPw),
+    activity: () => invoke('vault:activity'),
     onLocked: (cb) => subscribe('vault:locked', cb)
   },
   themes: {

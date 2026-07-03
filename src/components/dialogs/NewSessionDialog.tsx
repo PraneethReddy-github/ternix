@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Protocol, Session, SessionInput, SshKey, AuthType } from '@shared/index'
 import { Modal, Field } from '@/components/ui/Modal'
 import { useSessionStore } from '@/store/useSessionStore'
+import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
 import { cn } from '@/utils/cn'
 
@@ -41,7 +42,7 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
           protocol: 'ssh',
           host: '',
           port: 22,
-          username: '',
+          username: useSettingsStore.getState().get('ssh.defaultUsername'),
           auth_type: 'password',
           group_id: groupId ?? null,
           keepalive_interval: 30,

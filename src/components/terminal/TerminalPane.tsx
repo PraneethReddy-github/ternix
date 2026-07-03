@@ -122,8 +122,22 @@ export function TerminalPane({ tab, pane, active }: { tab: Tab; pane: Pane; acti
       }}
     >
       {showToolbar && <TerminalToolbar tab={tab} pane={pane} />}
-      <div className="relative flex-1 min-h-0 bg-bg" onContextMenu={onContext}>
+      <div
+        className="relative flex-1 min-h-0 bg-bg"
+        onContextMenu={onContext}
+        onMouseDown={(e) => {
+          if (e.button === 1 && useSettingsStore.getState().getBool('terminal.pasteOnMiddleClick')) {
+            e.preventDefault()
+            doPaste()
+          }
+        }}
+      >
         <div ref={ctrl.containerRef} className="absolute inset-1.5" />
+        {pane.recording && (
+          <div className="absolute top-1.5 right-2.5 z-10 flex items-center gap-1 rounded bg-danger/90 px-1.5 py-0.5 text-[10px] font-semibold text-white pointer-events-none" title="This session is being recorded">
+            <span className="w-1.5 h-1.5 rounded-full bg-white tx-pulse" /> REC
+          </div>
+        )}
         {searchOpen && <TerminalSearch search={ctrl.search} onClose={() => setSearchOpen(false)} />}
       </div>
       {element}

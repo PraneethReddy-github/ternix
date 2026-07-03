@@ -106,7 +106,7 @@ export function StatsPanel() {
         <Activity size={13} className="text-muted shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-[10px] uppercase tracking-wide text-muted font-semibold">Monitor</div>
-          <div className="text-[10px] text-text truncate font-mono">{hostname}</div>
+          <div className="text-[10px] text-text truncate">{hostname}</div>
         </div>
         <button onClick={refresh} title="Refresh" className="text-muted hover:text-text transition-colors">
           <RefreshCw size={11} />
@@ -136,12 +136,19 @@ export function StatsPanel() {
         ) : (
           <div className="px-3 py-2 flex flex-col gap-3">
 
+            {/* Uptime — pinned to the top */}
+            <div className="flex justify-between text-[9px]">
+              <span className="text-muted">Uptime</span>
+              <span className="text-text">{fmtUptime(stats.uptimeSecs)}</span>
+            </div>
+            <div className="h-px bg-border" />
+
             {/* CPU */}
             <section>
               <Label icon={Cpu} text="CPU" />
               <div className="flex items-end justify-between mb-1">
                 <div className="flex items-baseline gap-0.5">
-                  <span className="text-[20px] font-mono font-bold leading-none" style={{ color: heat(stats.cpu) }}>
+                  <span className="text-[20px] font-bold leading-none" style={{ color: heat(stats.cpu) }}>
                     {stats.cpu.toFixed(2)}
                   </span>
                   <span className="text-[11px] text-muted">%</span>
@@ -152,9 +159,9 @@ export function StatsPanel() {
               {stats.topProcess && (
                 <div className="flex justify-between mt-2 text-[9px] text-muted">
                   <span className="truncate max-w-[130px]" title={stats.topProcess.name}>
-                    Top: <span className="font-mono text-text">{stats.topProcess.name}</span>
+                    Top: <span className="text-text">{stats.topProcess.name}</span>
                   </span>
-                  <span className="font-mono text-text">{stats.topProcess.cpu.toFixed(2)}%</span>
+                  <span className="text-text">{stats.topProcess.cpu.toFixed(2)}%</span>
                 </div>
               )}
               <div className="flex justify-between mt-1 text-[9px] text-muted">
@@ -174,19 +181,19 @@ export function StatsPanel() {
               <Label icon={Activity} text="Memory" />
               <div className="flex items-baseline justify-between mb-1">
                 <div className="flex items-baseline gap-0.5">
-                  <span className="text-[20px] font-mono font-bold leading-none" style={{ color: heat(stats.mem.percent) }}>
+                  <span className="text-[20px] font-bold leading-none" style={{ color: heat(stats.mem.percent) }}>
                     {stats.mem.percent.toFixed(2)}
                   </span>
                   <span className="text-[11px] text-muted">%</span>
                 </div>
-                <span className="text-[10px] text-muted font-mono">{fmt(stats.mem.used)} / {fmt(stats.mem.total)}</span>
+                <span className="text-[10px] text-muted">{fmt(stats.mem.used)} / {fmt(stats.mem.total)}</span>
               </div>
               <Bar pct={stats.mem.percent} color={heat(stats.mem.percent)} />
               {stats.swap.total > 0 && (
                 <div className="mt-2">
                   <div className="flex justify-between mb-1">
                     <span className="text-[9px] text-muted">Swap</span>
-                    <span className="text-[9px] text-muted font-mono">{fmt(stats.swap.used)} / {fmt(stats.swap.total)}</span>
+                    <span className="text-[9px] text-muted">{fmt(stats.swap.used)} / {fmt(stats.swap.total)}</span>
                   </div>
                   <Bar pct={stats.swap.percent} color={heat(stats.swap.percent)} />
                 </div>
@@ -202,8 +209,8 @@ export function StatsPanel() {
                     {stats.disk.map((d: any) => (
                       <div key={d.path}>
                         <div className="flex justify-between mb-1">
-                          <span className="text-[10px] text-text font-mono truncate max-w-[90px]" title={d.path}>{d.path}</span>
-                          <span className="text-[9px] text-muted font-mono">{fmt(d.used)} / {fmt(d.total)}</span>
+                          <span className="text-[10px] text-text truncate max-w-[90px]" title={d.path}>{d.path}</span>
+                          <span className="text-[9px] text-muted">{fmt(d.used)} / {fmt(d.total)}</span>
                         </div>
                         <Bar pct={d.percent} color={heat(d.percent)} />
                       </div>
@@ -222,14 +229,14 @@ export function StatsPanel() {
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between mb-0.5">
                         <span className="text-[9px] text-muted">↓ RX</span>
-                        <span className="text-[9px] font-mono text-[#60a5fa]">{fmt(rxHist[rxHist.length-1] ?? 0)}/s</span>
+                        <span className="text-[9px] text-[#60a5fa]">{fmt(rxHist[rxHist.length-1] ?? 0)}/s</span>
                       </div>
                       <Sparkline history={rxHist} color="#60a5fa" max={Math.max(1, ...rxHist, ...txHist)} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between mb-0.5">
                         <span className="text-[9px] text-muted">↑ TX</span>
-                        <span className="text-[9px] font-mono text-[#ef4444]">{fmt(txHist[txHist.length-1] ?? 0)}/s</span>
+                        <span className="text-[9px] text-[#ef4444]">{fmt(txHist[txHist.length-1] ?? 0)}/s</span>
                       </div>
                       <Sparkline history={txHist} color="#ef4444" max={Math.max(1, ...rxHist, ...txHist)} />
                     </div>
@@ -247,7 +254,7 @@ export function StatsPanel() {
                     {stats.temps.map((t: any) => (
                       <div key={t.label} className="flex justify-between items-center text-[11px]">
                         <span className="text-[9px] text-muted truncate max-w-[110px]">{t.label}</span>
-                        <span className="text-[10px] font-mono font-semibold" style={{ color: heat(t.celsius - 30) }}>
+                        <span className="text-[10px] font-semibold" style={{ color: heat(t.celsius - 30) }}>
                           {t.celsius}°C
                         </span>
                       </div>
@@ -257,11 +264,6 @@ export function StatsPanel() {
               </>
             )}
 
-            <div className="h-px bg-border" />
-            <div className="flex justify-between text-[9px] pb-1">
-              <span className="text-muted">Uptime</span>
-              <span className="text-text font-mono">{fmtUptime(stats.uptimeSecs)}</span>
-            </div>
           </div>
         )}
       </div>

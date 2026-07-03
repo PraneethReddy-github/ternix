@@ -22,6 +22,8 @@ export function registerSettingsHandlers(): void {
   handle<boolean>('vault:unlock', (password: string) => CryptoService.unlock(password))
   handle<void>('vault:lock', () => CryptoService.lock())
   handle<void>('vault:removeMasterPassword', (currentPw: string) => CryptoService.removeMasterPassword(currentPw))
+  // User activity → reset the idle auto-lock timer (no-op in keychain mode).
+  handle<void>('vault:activity', () => CryptoService.touch())
 
   // Custom themes
   handle<TerminalTheme[]>('themes:listCustom', () => themesRepo.list())
