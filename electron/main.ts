@@ -5,6 +5,8 @@ import { dirname } from 'node:path'
 import { DatabaseService } from './services/DatabaseService'
 import { CryptoService } from './services/CryptoService'
 import { ConnectionManager } from './services/ConnectionManager'
+import { VncBridgeService } from './services/VncBridgeService'
+import { RdpGatewayService } from './services/RdpGatewayService'
 import { Bus } from './services/bus'
 import { settingsRepo } from './db/repo'
 import { registerAllIpc } from './ipc'
@@ -77,7 +79,7 @@ function applyCsp(): void {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
-          `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'`
+          `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; object-src 'none'; base-uri 'none'`
         ]
       }
     })
@@ -112,5 +114,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   ConnectionManager.killAll()
+  VncBridgeService.closeAll()
+  RdpGatewayService.closeAll()
   DatabaseService.close()
 })

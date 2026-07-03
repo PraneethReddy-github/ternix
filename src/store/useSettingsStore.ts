@@ -47,6 +47,8 @@ export const SETTING_DEFAULTS: SettingsMap = {
   'advanced.hardwareAcceleration': 'true',
   'advanced.rendererType': 'webgl',
   'advanced.debugLogLevel': 'info',
+  'rdp.guacdHost': '127.0.0.1',
+  'rdp.guacdPort': '4822',
   'recording.autoRecord': 'false',
   'recording.maxStorageMb': '0'
 }

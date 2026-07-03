@@ -5,6 +5,7 @@ import { useSessionStore } from '@/store/useSessionStore'
 import { useUiStore } from '@/store/useUiStore'
 import { useContextMenu } from '@/components/ui/ContextMenu'
 import { ProtocolIcon } from '@/components/sidebar/ProtocolIcon'
+import { connectSession } from '@/components/sidebar/SessionCard'
 import { cn } from '@/utils/cn'
 import type { Tab } from '@shared/ui'
 
@@ -110,9 +111,10 @@ export function TabBar() {
               onClose={() => closeTab(tab.id)}
               onContext={(e) =>
                 open(e, [
+                  { label: 'Open in new tab', onClick: () => openSessionInNewTab(tab) },
                   { label: 'Rename tab', onClick: () => promptRename(tab) },
-                  { 
-                    label: 'Duplicate session', 
+                  {
+                    label: 'Duplicate session',
                     onClick: () => {
                       const p = tab.panes.find((x) => x.id === tab.activePaneId) ?? tab.panes[0];
                       if (!p?.sessionId) return useUiStore.getState().notify('This tab is not linked to a saved session', 'error');
@@ -159,6 +161,30 @@ export function TabBar() {
 function promptRename(tab: Tab) {
   const name = window.prompt('Rename tab', tab.title)
   if (name) useTabStore.getState().renameTab(tab.id, name)
+}
+
+/**
+ * Open a fresh tab with a brand-new connection to the same target as `tab`.
+ * For a saved-session tab this launches a second live session; for a plain
+ * local shell it opens another local shell.
+ */
+function openSessionInNewTab(tab: Tab) {
+  const pane = tab.panes.find((p) => p.id === tab.activePaneId) ?? tab.panes[0]
+  if (pane?.sessionId != null) {
+    const session = useSessionStore.getState().sessions.find((x) => x.id === pane.sessionId)
+    if (session) {
+      connectSession(session, useTabStore)
+      return
+    }
+  }
+  // Fall back to reopening whatever the pane represents (e.g. a local shell).
+  useTabStore.getState().newTab({
+    sessionId: pane?.sessionId ?? null,
+    protocol: pane?.protocol ?? 'local',
+    title: tab.title,
+    host: pane?.host ?? null,
+    color: tab.color
+  })
 }
 
 function TabItem({

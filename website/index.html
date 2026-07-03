@@ -1,322 +1,234 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ternix — The Last Terminal You'll Ever Need</title>
-  <meta name="description" content="Download Ternix, the modern SSH and remote session manager for Windows and Linux. Free, open-source, and blazingly fast." />
-  <meta property="og:title" content="Ternix — The Last Terminal You'll Ever Need" />
-  <meta property="og:description" content="A modern SSH & remote session manager. Download for Windows or Linux." />
+  <title>Ternix — The Terminal You'll Ever Need</title>
+  <meta name="description"
+    content="Ternix is a free, open-source cross-platform terminal for SSH, Telnet, Serial, RDP, and VNC. Session management, split panes, recordings, SFTP. Download for Windows and Linux." />
+  <meta property="og:title" content="Ternix — The Terminal You'll Ever Need" />
+  <meta property="og:description"
+    content="SSH, Telnet, Serial, RDP, VNC. Sessions, splits, recordings. Built for engineers who live in the shell." />
   <meta property="og:type" content="website" />
+  <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;700&display=swap"
+    rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
-  <!-- Animated background -->
-  <div class="bg-animation">
-    <div class="bg-orb orb-1"></div>
-    <div class="bg-orb orb-2"></div>
-    <div class="bg-orb orb-3"></div>
-    <div class="grid-overlay"></div>
-  </div>
 
-  <!-- Navigation -->
-  <nav class="navbar" id="navbar">
+<body>
+  <div class="bg-grid"></div>
+
+  <!-- Nav -->
+  <nav class="nav" id="nav">
     <div class="nav-inner">
-      <a href="#" class="nav-logo">
+      <a href="#" class="nav-logo" id="nav-logo">
         <span class="logo-icon">&gt;T&lt;</span>
         <span class="logo-text">Ternix</span>
       </a>
-      <div class="nav-links">
-        <a href="#features" class="nav-link">Features</a>
-        <a href="#download" class="nav-link">Download</a>
-        <a href="https://github.com/PraneethReddy-github/ternix" target="_blank" class="nav-link">GitHub</a>
-        <a href="#download" class="btn btn-primary btn-sm nav-cta">Download Free</a>
+      <div class="nav-right">
+        <a href="https://github.com/PraneethReddy-github/ternix" target="_blank" rel="noopener" class="nav-link"
+          id="nav-github-link">GitHub</a>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+          <svg class="theme-icon sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5" />
+            <line x1="12" y1="1" x2="12" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="23" />
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+            <line x1="1" y1="12" x2="3" y2="12" />
+            <line x1="21" y1="12" x2="23" y2="12" />
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+          </svg>
+          <svg class="theme-icon moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
+        </button>
       </div>
     </div>
   </nav>
 
-  <!-- Hero Section -->
-  <section class="hero">
-    <div class="hero-content">
-      <div class="hero-badge">
-        <span class="badge-dot"></span>
-        <span id="hero-version-badge">v0.1.1 — Now Available</span>
-      </div>
-      <h1 class="hero-title">
-        The <span class="gradient-text">Last Terminal</span><br />
-        You'll Ever Need
-      </h1>
-      <p class="hero-subtitle">
-        A blazingly fast, modern SSH &amp; remote session manager.<br />
-        Built with Electron, React, and a obsession for great UX.
-      </p>
-      <div class="hero-actions">
-        <button class="btn btn-primary btn-lg" id="hero-download-btn" onclick="scrollToDownload()">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download Free
-        </button>
-        <a href="https://github.com/PraneethReddy-github/ternix" target="_blank" class="btn btn-ghost btn-lg">
-          <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-          View on GitHub
+  <!-- Hero -->
+  <section class="hero" id="hero">
+    <div class="hero-inner">
+      <h1>The terminal you actually<br>want to use.</h1>
+      <p class="hero-sub">SSH, Telnet, Serial, RDP, VNC. Sessions, splits, recordings.<br>Built for engineers who live in the
+        shell.</p>
+      <div class="hero-buttons">
+        <a href="#download" class="btn-download" id="btn-hero-windows">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <path
+              d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
+          </svg>
+          Download for Windows
+        </a>
+        <a href="#download" class="btn-download" id="btn-hero-linux">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+          Download for Linux
         </a>
       </div>
-      <div class="hero-stats">
-        <div class="stat">
-          <span class="stat-value" id="stat-version">0.1.1</span>
-          <span class="stat-label">Latest Version</span>
+      <p class="hero-note">Free. Open source. No telemetry.</p>
+
+      <!-- Terminal Animation -->
+      <div class="terminal-wrapper">
+        <div class="terminal-glow"></div>
+        <div class="terminal-window" id="terminal-window">
+          <div class="terminal-titlebar">
+            <div class="terminal-dots">
+              <span class="terminal-dot terminal-dot--red"></span>
+              <span class="terminal-dot terminal-dot--yellow"></span>
+              <span class="terminal-dot terminal-dot--green"></span>
+            </div>
+            <span class="terminal-titlebar-text">ternix — praneeth@devbox</span>
+          </div>
+          <div class="terminal-body" id="terminal-body"><span class="cursor" id="cursor"></span></div>
         </div>
-        <div class="stat-divider"></div>
-        <div class="stat">
-          <span class="stat-value">2</span>
-          <span class="stat-label">Platforms</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat">
-          <span class="stat-value">MIT</span>
-          <span class="stat-label">License</span>
-        </div>
-      </div>
-    </div>
-    <!-- Terminal mockup -->
-    <div class="terminal-mockup">
-      <div class="terminal-bar">
-        <div class="terminal-dots">
-          <span class="dot dot-red"></span>
-          <span class="dot dot-yellow"></span>
-          <span class="dot dot-green"></span>
-        </div>
-        <span class="terminal-title">Ternix — SSH Session</span>
-      </div>
-      <div class="terminal-body">
-        <div class="terminal-line"><span class="t-prompt">ternix</span><span class="t-at">@</span><span class="t-host">server-01</span><span class="t-sym">:~$</span> <span class="t-cmd typed-text" id="typed-text"></span><span class="cursor" id="cursor">|</span></div>
-        <div class="terminal-output" id="terminal-output"></div>
       </div>
     </div>
   </section>
 
-  <!-- Features Section -->
+  <!-- Features -->
   <section class="features" id="features">
-    <div class="section-inner">
-      <div class="section-header">
-        <span class="section-tag">Why Ternix?</span>
-        <h2 class="section-title">Built for professionals<br /><span class="gradient-text">who live in the terminal</span></h2>
+    <div class="features-inner">
+      <div class="section-eyebrow">What Ternix does</div>
+      <div class="feature-row">
+        <div class="feature-name">SSH / Telnet / Serial</div>
+        <div class="feature-desc">Full protocol support with key-based auth and agent forwarding</div>
       </div>
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon feature-icon-cyan">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          </div>
-          <h3 class="feature-title">Multi-Tab Sessions</h3>
-          <p class="feature-desc">Manage dozens of SSH sessions simultaneously in a clean, blazing-fast tabbed interface.</p>
-        </div>
-        <div class="feature-card feature-card-highlight">
-          <div class="feature-icon feature-icon-purple">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          </div>
-          <h3 class="feature-title">Encrypted Key Vault</h3>
-          <p class="feature-desc">Store SSH keys and passwords in an encrypted local vault. Your credentials, never leave your machine.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon feature-icon-cyan">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-          </div>
-          <h3 class="feature-title">Split Pane View</h3>
-          <p class="feature-desc">Up to 4 split-pane terminals side by side. Perfect for monitoring multiple servers at once.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon feature-icon-purple">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-          </div>
-          <h3 class="feature-title">Session Import</h3>
-          <p class="feature-desc">Import sessions from MobaXterm, Tabby, and other popular terminal managers in seconds.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon feature-icon-cyan">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-          </div>
-          <h3 class="feature-title">Session Recording</h3>
-          <p class="feature-desc">Record terminal sessions and export them as text logs for auditing or documentation.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon feature-icon-purple">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
-          </div>
-          <h3 class="feature-title">Auto-Updates</h3>
-          <p class="feature-desc">Built-in auto-updater keeps you on the latest version automatically — no manual downloads needed.</p>
-        </div>
+      <div class="feature-row">
+        <div class="feature-name">Remote Desktop (RDP / VNC)</div>
+        <div class="feature-desc">Integrated RDP and VNC support for seamless graphical sessions</div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-name">SFTP Dual-Pane Manager</div>
+        <div class="feature-desc">Drag-and-drop file transfers between local and remote</div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-name">Session Recording</div>
+        <div class="feature-desc">Record and replay any terminal session, exportable</div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-name">Port Forwarding</div>
+        <div class="feature-desc">Local, remote, and dynamic tunnels with one click</div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-name">Split Panes</div>
+        <div class="feature-desc">Horizontal and vertical splits, resize any pane</div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-name">Tab Management</div>
+        <div class="feature-desc">Named tabs, color-coded groups, keyboard shortcuts</div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-name">Connection Profiles</div>
+        <div class="feature-desc">Saved sessions with per-profile keys, colors, and env vars</div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-name">Cross-Platform</div>
+        <div class="feature-desc">Runs natively on Windows and Linux</div>
       </div>
     </div>
   </section>
 
   <!-- Download Section -->
   <section class="download-section" id="download">
-    <div class="section-inner">
-      <div class="section-header">
-        <span class="section-tag">Download</span>
-        <h2 class="section-title">Get Ternix <span class="gradient-text" id="download-version-title">v0.1.1</span></h2>
-        <p class="section-subtitle" id="download-date">Released today · Free &amp; Open Source</p>
-      </div>
+    <div class="download-inner">
+      <div class="section-eyebrow">Download</div>
+      <h2 class="download-title" id="download-title">Get Ternix</h2>
+      <p class="download-subtitle" id="download-date">Loading latest release…</p>
 
-      <!-- Loading state -->
+      <!-- Loading -->
       <div class="loading-state" id="loading-state">
         <div class="spinner"></div>
         <p>Fetching latest release…</p>
       </div>
 
-      <!-- Download cards -->
+      <!-- Download Cards -->
       <div class="download-grid" id="download-grid" style="display:none">
-        <!-- Windows Card -->
-        <div class="download-card download-card-windows">
+        <!-- Windows -->
+        <div class="download-card">
           <div class="download-card-header">
-            <div class="os-icon">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+            <div class="os-icon os-icon-win">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
+              </svg>
             </div>
-            <div class="os-info">
+            <div>
               <h3 class="os-name">Windows</h3>
-              <p class="os-version">Windows 10/11 · x64</p>
+              <p class="os-meta">Windows 10/11 · x64</p>
             </div>
           </div>
-          <div class="download-options" id="windows-options">
-            <!-- Populated by JS -->
-          </div>
+          <div class="download-options" id="windows-options"></div>
         </div>
-
-        <!-- Linux Card -->
-        <div class="download-card download-card-linux">
+        <!-- Linux -->
+        <div class="download-card">
           <div class="download-card-header">
             <div class="os-icon os-icon-linux">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.682-.045 1.3.45 1.91.419.609-.03 1.3-.487 1.52-1.076.062-.152.016-.498.178-.501.047-.049-.1-.046-.155-.068-.026-.01-.05-.02-.074-.031-.155-.079-.242-.118-.313-.126-.07-.01-.132.005-.212.049-.12.052-.292.125-.48.105-.187-.02-.397-.097-.546-.286-.11-.14-.185-.327-.243-.554-.056-.22-.097-.47-.147-.71-.093-.42-.217-.837-.5-1.26-.14-.21-.32-.41-.6-.54-.182-.087-.348-.1-.488-.07-.14.029-.266.1-.418.15-.3.1-.684.12-1.044-.02-.36-.14-.664-.44-.812-.74-.295-.645-.026-1.355.19-1.775.4-.768 1.11-1.125 1.31-2.075.12-.527.1-1.154-.04-1.834-.145-.69-.396-1.423-.682-2.084-.567-1.325-1.285-2.478-1.456-3.534-.11-.67-.107-1.324.073-1.91.41-1.315 1.584-2.285 2.65-3.29.53-.51 1.025-1.065 1.36-1.68C14.5.5 14.6.2 14.5.07c-.04-.07-.1-.1-.17-.07-.1.042-.24.14-.35.42-.096.278-.18.61-.27.91-.195.635-.414 1.148-.776 1.505-.362.357-.897.542-1.538.598-.64.057-1.35-.04-1.873-.384-.523-.345-.838-1.02-.873-1.837-.045-.69.109-1.387.273-1.951.154-.56.308-1.015.318-1.446.013-.428-.105-.831-.35-1.131C11.84.24 11.678.1 11.5.04 11.32-.02 11.14.01 11.02.18c-.127.174-.128.457-.047.74.065.224.187.45.3.62.112.17.211.3.275.44.065.14.1.302.083.572-.015.265-.084.612-.143.917-.118.625-.19 1.19-.163 1.73.027.54.14 1.053.4 1.512-.087.087-.168.185-.24.294-.25.358-.395.785-.478 1.219-.085.43-.113.87-.13 1.29-.038.846.025 1.621.283 2.296-.12.226-.238.467-.335.72-.292.765-.352 1.62-.244 2.464-.07.078-.133.165-.198.252-.455.617-.697 1.407-.778 2.197-.084.793-.013 1.583.2 2.296.25.838.71 1.527 1.326 1.959.615.43 1.363.596 2.093.459.385.35.847.65 1.396.874 1.396.578 3.035.624 4.534.16.74-.232 1.438-.578 2.02-1.052.327-.263.626-.573.87-.928a3.04 3.04 0 00.49-1.376c.033-.484-.076-.977-.306-1.41-.123-.23-.285-.44-.487-.617a3.48 3.48 0 00.034-.36c.006-.51-.1-.984-.3-1.398-.15-.313-.362-.582-.624-.79.064-.163.12-.328.166-.495.17-.6.19-1.213.102-1.805-.088-.593-.29-1.168-.598-1.67a4.59 4.59 0 00-.25-.364c.035-.12.066-.24.096-.36.19-.775.2-1.558.055-2.285-.148-.727-.45-1.395-.886-1.935a4.2 4.2 0 00-.374-.397c.064-.298.11-.608.134-.934.054-.72-.016-1.508-.278-2.222C16.98.88 16.52.35 15.944.1 15.37-.15 14.73-.09 14.203.15c-.367.163-.677.42-.905.74-.227.322-.37.703-.41 1.1-.04.396.04.802.22 1.16.178.358.45.663.783.87.333.205.714.31 1.093.312.378.002.756-.098 1.086-.287zM8.5 18.3c-.31.002-.63-.033-.954-.106-.323-.073-.65-.185-.985-.336l.113-.37c.317.143.622.245.926.31.304.064.612.094.9.09v.412zm6.96-.1c-.288.004-.596-.026-.9-.09-.304-.065-.61-.167-.926-.31l.112.37c.335.151.662.263.985.336.323.073.644.108.954.106l-.225-.412z"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                stroke-linejoin="round">
+                <polyline points="4 17 10 11 4 5"></polyline>
+                <line x1="12" y1="19" x2="20" y2="19"></line>
+              </svg>
             </div>
-            <div class="os-info">
+            <div>
               <h3 class="os-name">Linux</h3>
-              <p class="os-version">Ubuntu · Debian · AppImage</p>
+              <p class="os-meta">Ubuntu · Debian · AppImage</p>
             </div>
           </div>
-          <div class="download-options" id="linux-options">
-            <!-- Populated by JS -->
-          </div>
+          <div class="download-options" id="linux-options"></div>
         </div>
       </div>
 
-      <!-- Error state -->
+      <!-- Error -->
       <div class="error-state" id="error-state" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <p>Could not fetch release info. <a href="https://github.com/PraneethReddy-github/ternix/releases/latest" target="_blank">View on GitHub</a></p>
-      </div>
-
-      <!-- Release notes -->
-      <div class="release-notes" id="release-notes" style="display:none">
-        <div class="release-notes-inner">
-          <h4>📦 Release Notes</h4>
-          <div id="release-body"></div>
-          <a href="https://github.com/PraneethReddy-github/ternix/releases" target="_blank" class="release-link">View all releases on GitHub →</a>
-        </div>
+        <p>Could not fetch release info. <a href="https://github.com/PraneethReddy-github/ternix/releases/latest"
+            target="_blank">View on GitHub →</a></p>
       </div>
     </div>
   </section>
 
-  <!-- Install Instructions -->
-  <section class="install-section">
-    <div class="section-inner">
-      <div class="section-header">
-        <span class="section-tag">Quick Start</span>
-        <h2 class="section-title">Up and running <span class="gradient-text">in minutes</span></h2>
-      </div>
-      <div class="install-tabs">
-        <button class="install-tab active" id="tab-win" onclick="showInstallTab('win')">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
-          Windows
-        </button>
-        <button class="install-tab" id="tab-deb" onclick="showInstallTab('deb')">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.682-.045 1.3.45 1.91.419.609-.03 1.3-.487 1.52-1.076.062-.152.016-.498.178-.501h-.001z"/></svg>
-          Linux (Debian/Ubuntu)
-        </button>
-        <button class="install-tab" id="tab-appimage" onclick="showInstallTab('appimage')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
-          Linux (AppImage)
-        </button>
-      </div>
-      <div class="install-content">
-        <div class="install-panel active" id="panel-win">
-          <div class="code-block">
-            <div class="code-header">
-              <span>PowerShell / Terminal</span>
-              <button class="copy-btn" onclick="copyCode('cmd-win')">Copy</button>
-            </div>
-            <pre id="cmd-win"><code><span class="c-comment"># Download the installer and run it</span>
-<span class="c-cmd">Start-Process</span> <span class="c-str" id="win-setup-url">"https://github.com/PraneethReddy-github/ternix/releases/latest/download/Ternix-Setup-0.1.1.exe"</span>
-
-<span class="c-comment"># Or use winget (coming soon)</span>
-<span class="c-cmd">winget install</span> <span class="c-str">Ternix</span></code></pre>
-          </div>
-          <ol class="install-steps">
-            <li>Download <strong>Ternix-Setup.exe</strong> (NSIS installer)</li>
-            <li>Run the installer and follow the on-screen instructions</li>
-            <li>Launch Ternix from Start Menu or Desktop</li>
-          </ol>
-        </div>
-        <div class="install-panel" id="panel-deb">
-          <div class="code-block">
-            <div class="code-header">
-              <span>Bash</span>
-              <button class="copy-btn" onclick="copyCode('cmd-deb')">Copy</button>
-            </div>
-            <pre id="cmd-deb"><code><span class="c-comment"># Download the .deb package</span>
-<span class="c-cmd">wget</span> <span class="c-str" id="deb-url">"https://github.com/PraneethReddy-github/ternix/releases/latest/download/ternix_0.1.1_amd64.deb"</span>
-
-<span class="c-comment"># Install with apt</span>
-<span class="c-cmd">sudo apt install</span> ./ternix_*_amd64.deb</code></pre>
-          </div>
-          <ol class="install-steps">
-            <li>Download the <strong>.deb</strong> package</li>
-            <li>Install via <code>sudo apt install ./ternix_*_amd64.deb</code></li>
-            <li>Launch Ternix from your application menu</li>
-          </ol>
-        </div>
-        <div class="install-panel" id="panel-appimage">
-          <div class="code-block">
-            <div class="code-header">
-              <span>Bash</span>
-              <button class="copy-btn" onclick="copyCode('cmd-appimage')">Copy</button>
-            </div>
-            <pre id="cmd-appimage"><code><span class="c-comment"># Download AppImage</span>
-<span class="c-cmd">wget</span> <span class="c-str" id="appimage-url">"https://github.com/PraneethReddy-github/ternix/releases/latest/download/Ternix-0.1.1.AppImage"</span>
-
-<span class="c-comment"># Make executable and run</span>
-<span class="c-cmd">chmod</span> +x Ternix-*.AppImage
-./Ternix-*.AppImage <span class="c-str">--no-sandbox</span></code></pre>
-          </div>
-          <ol class="install-steps">
-            <li>Download the <strong>.AppImage</strong></li>
-            <li>Make it executable: <code>chmod +x Ternix-*.AppImage</code></li>
-            <li>Run with: <code>./Ternix-*.AppImage --no-sandbox</code></li>
-          </ol>
-        </div>
-      </div>
+  <!-- GitHub Section -->
+  <section class="github-section" id="github-section">
+    <div class="github-inner">
+      <h2 class="github-title">Ternix is open source</h2>
+      <p class="github-desc">Browse the code, open issues, or contribute.</p>
+      <a href="https://github.com/PraneethReddy-github/ternix" target="_blank" rel="noopener" class="btn-outlined"
+        id="btn-view-github">View on GitHub →</a>
     </div>
   </section>
 
   <!-- Footer -->
-  <footer class="footer">
+  <footer class="footer" id="footer">
     <div class="footer-inner">
-      <div class="footer-logo">
-        <span class="logo-icon">&gt;T&lt;</span>
-        <span class="logo-text">Ternix</span>
+      <div class="footer-top">
+        <div class="footer-brand">
+          <span class="logo-icon">&gt;T&lt;</span>
+          <span class="logo-text">Ternix</span>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/PraneethReddy-github/ternix" target="_blank">GitHub</a>
+          <a href="https://github.com/PraneethReddy-github/ternix/releases" target="_blank">Releases</a>
+          <a href="https://github.com/PraneethReddy-github/ternix/issues" target="_blank">Issues</a>
+          <a href="https://github.com/PraneethReddy-github/ternix/blob/main/LICENSE" target="_blank">MIT License</a>
+        </div>
       </div>
-      <p class="footer-desc">The last terminal you'll ever need.</p>
-      <div class="footer-links">
-        <a href="https://github.com/PraneethReddy-github/ternix" target="_blank">GitHub</a>
-        <a href="https://github.com/PraneethReddy-github/ternix/releases" target="_blank">Releases</a>
-        <a href="https://github.com/PraneethReddy-github/ternix/issues" target="_blank">Report a Bug</a>
-        <a href="https://github.com/PraneethReddy-github/ternix/blob/main/LICENSE" target="_blank">MIT License</a>
+      <div class="footer-bottom">
+        <p>© 2026 Ternix. Built by Praneeth. Open source under MIT License.</p>
       </div>
-      <p class="footer-copy">© 2026 Ternix. Open source under MIT License.</p>
     </div>
   </footer>
 
   <script src="app.js"></script>
 </body>
+
 </html>

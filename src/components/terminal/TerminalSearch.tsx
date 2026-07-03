@@ -18,7 +18,10 @@ export function TerminalSearch({ search, onClose }: { search: React.MutableRefOb
   const prev = () => query && search.current?.findPrevious(query, opts)
 
   return (
-    <div className="absolute top-2 right-3 z-20 flex items-center gap-1 bg-surface-2 border border-border rounded-input px-2 py-1 shadow-lg">
+    <div
+      className="absolute top-2 right-3 z-20 flex items-center gap-1 bg-surface-2 border border-border rounded-input px-2 py-1 shadow-lg"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <input
         ref={inputRef}
         value={query}
@@ -27,6 +30,7 @@ export function TerminalSearch({ search, onClose }: { search: React.MutableRefOb
           if (e.target.value) search.current?.findNext(e.target.value, opts)
         }}
         onKeyDown={(e) => {
+          e.stopPropagation()
           if (e.key === 'Enter') (e.shiftKey ? prev() : next())
           if (e.key === 'Escape') onClose()
         }}

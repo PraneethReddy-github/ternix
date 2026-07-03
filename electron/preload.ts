@@ -48,6 +48,13 @@ const api: TernixApi = {
     respondCredentials: (tabId, response) => ipcRenderer.send('terminal:credentials-respond', tabId, response),
     latency: (tabId) => invoke('terminal:latency', tabId)
   },
+  remote: {
+    openVnc: (tabId, sessionId) => invoke('remote:vnc:open', tabId, sessionId),
+    openRdp: (tabId, sessionId, width, height) => invoke('remote:rdp:open', tabId, sessionId, width, height),
+    guacdStatus: () => invoke('remote:rdp:guacdStatus'),
+    launchNative: (sessionId) => invoke('remote:native:launch', sessionId),
+    close: (tabId) => invoke('remote:close', tabId)
+  },
   sftp: {
     open: (tabId) => invoke('sftp:open', tabId),
     listDir: (tabId, p) => invoke('sftp:listDir', tabId, p),

@@ -122,8 +122,13 @@ export function useTerminal(pane: Pane): TerminalController {
       setPaneState(pane.id, state as any, message)
     )
     const spawnConnection = () => {
+      // For local shells, honour the user's configured default shell (e.g. powershell.exe
+      // on Windows, /bin/zsh on Unix). Read fresh so a settings change applies on reconnect.
+      const shellPref = useSettingsStore.getState().get('general.defaultShell').trim()
+      const localShell =
+        pane.protocol === 'local' && shellPref ? { shell: shellPref } : undefined
       window.ternix.terminal
-        .spawn({ tabId: pane.id, sessionId: pane.sessionId, cols: term.cols, rows: term.rows })
+        .spawn({ tabId: pane.id, sessionId: pane.sessionId, cols: term.cols, rows: term.rows, localShell })
         .then((res) => {
           if (!res.ok) {
             term.writeln(`\r\n\x1b[31m${res.error ?? 'Connection failed'}\x1b[0m`)

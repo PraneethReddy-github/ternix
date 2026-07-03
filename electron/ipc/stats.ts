@@ -1,8 +1,83 @@
 import { handle } from './util'
 import * as os from 'node:os'
 import { readFileSync } from 'node:fs'
-import { execSync } from 'node:child_process'
+import { exec, execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { ConnectionManager } from '../services/ConnectionManager'
+
+const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
+
+// ── Non-blocking process helpers ───────────────────────────────────────────
+// IMPORTANT: never use execSync here. This code runs on the Electron *main*
+// process; a synchronous child-process call freezes the whole app (the window
+// goes "Not Responding" on Windows when dragged) until the child returns.
+// On Windows the local-stats commands spawn PowerShell/CIM, which can take
+// hundreds of ms to seconds — so everything below is async + windowsHide.
+
+/** Run a shell command (pipes/redirects allowed); returns stdout or '' on error. */
+async function sh(cmd: string, timeoutMs: number): Promise<string> {
+  try {
+    const { stdout } = await execAsync(cmd, { timeout: timeoutMs, windowsHide: true, maxBuffer: 1024 * 1024 })
+    return stdout.toString()
+  } catch {
+    return ''
+  }
+}
+
+/** Run PowerShell with a script block, no shell-quoting headaches; '' on error. */
+async function ps(script: string, timeoutMs: number): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      { timeout: timeoutMs, windowsHide: true, maxBuffer: 1024 * 1024 }
+    )
+    return stdout.toString().trim()
+  } catch {
+    return ''
+  }
+}
+
+/** ConvertTo-Json emits a bare object for a single item and an array for many. */
+function psJsonArray(raw: string): any[] {
+  if (!raw) return []
+  try {
+    const v = JSON.parse(raw)
+    return Array.isArray(v) ? v : [v]
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Wrap an async producer with a short TTL cache so expensive Windows queries
+ * (spawning PowerShell) don't run on every 3 s poll. Concurrent callers share a
+ * single in-flight promise. On error we serve the last good value if we have one.
+ */
+function cached<T>(ttlMs: number, fn: () => Promise<T>): () => Promise<T> {
+  let at = 0
+  let val: T | undefined
+  let inflight: Promise<T> | null = null
+  return () => {
+    const now = Date.now()
+    if (val !== undefined && now - at < ttlMs) return Promise.resolve(val)
+    if (inflight) return inflight
+    inflight = fn()
+      .then((v) => {
+        val = v
+        at = Date.now()
+        inflight = null
+        return v
+      })
+      .catch((e) => {
+        inflight = null
+        if (val !== undefined) return val
+        throw e
+      })
+    return inflight
+  }
+}
 
 export interface StatsDisk { path: string; used: number; total: number; percent: number }
 export interface StatsNet { iface: string; rxBytes: number; txBytes: number }
@@ -43,21 +118,23 @@ function cpuPercent(): Promise<number> {
   })
 }
 
-function localDisk(): StatsDisk[] {
+async function localDisk(): Promise<StatsDisk[]> {
   try {
     if (process.platform === 'win32') {
-      const out = execSync('wmic logicaldisk get size,freespace,caption', { timeout: 3000 }).toString()
-      return out.split('\n').slice(1).filter(Boolean).flatMap((l) => {
-        const p = l.trim().split(/\s+/)
-        if (p.length < 3) return []
-        const [caption, free, size] = p
-        const total = Number(size), avail = Number(free)
+      // Win32_LogicalDisk DriveType=3 → local fixed disks. Get-CimInstance replaces
+      // the deprecated `wmic` (removed on newer Windows) and is faster.
+      const raw = await ps(
+        "Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json -Compress",
+        5000
+      )
+      return psJsonArray(raw).flatMap((d) => {
+        const total = Number(d.Size), avail = Number(d.FreeSpace)
         if (!total) return []
         const used = total - avail
-        return [{ path: caption, used, total, percent: Math.round(used / total * 100) }]
+        return [{ path: d.DeviceID, used, total, percent: Math.round(used / total * 100) }]
       }).slice(0, 4)
     } else {
-      const out = execSync('df -B1 --output=used,size,target 2>/dev/null || df -k', { timeout: 3000 }).toString()
+      const out = await sh('df -B1 --output=used,size,target 2>/dev/null || df -k', 3000)
       return out.split('\n').slice(1).filter(Boolean).flatMap((l) => {
         const p = l.trim().split(/\s+/)
         if (p.length < 3) return []
@@ -73,10 +150,10 @@ function localDisk(): StatsDisk[] {
   }
 }
 
-function localNet(): StatsNet[] {
+async function localNet(): Promise<StatsNet[]> {
   try {
     if (process.platform === 'linux') {
-      // /proc/net/dev has cumulative rx/tx byte counters
+      // /proc/net/dev has cumulative rx/tx byte counters (instant file read, no subprocess).
       const raw = readFileSync('/proc/net/dev', 'utf8')
       return raw.split('\n').slice(2).flatMap((line) => {
         if (!line.includes(':')) return []
@@ -88,20 +165,17 @@ function localNet(): StatsNet[] {
         return [{ iface, rxBytes: Number(vals[0]), txBytes: Number(vals[8]) }]
       }).slice(0, 4)
     } else if (process.platform === 'win32') {
-      // PowerShell: Get-NetAdapterStatistics
-      const raw = execSync(
-        'powershell -NoProfile -Command "Get-NetAdapterStatistics | Select-Object -Property Name,ReceivedBytes,SentBytes | ConvertTo-Json -Compress"',
-        { timeout: 4000 }
-      ).toString().trim()
-      const arr = JSON.parse(raw.startsWith('[') ? raw : `[${raw}]`)
-      return (arr as any[]).map((x: any) => ({
+      const raw = await ps(
+        'Get-NetAdapterStatistics | Select-Object Name,ReceivedBytes,SentBytes | ConvertTo-Json -Compress',
+        4000
+      )
+      return psJsonArray(raw).map((x) => ({
         iface: x.Name,
         rxBytes: x.ReceivedBytes ?? 0,
         txBytes: x.SentBytes ?? 0
       })).slice(0, 4)
     } else if (process.platform === 'darwin') {
-      // macOS: netstat -ib
-      const raw = execSync('netstat -ib', { timeout: 3000 }).toString()
+      const raw = await sh('netstat -ib', 3000)
       const seen = new Set<string>()
       return raw.split('\n').slice(1).flatMap((line) => {
         const p = line.trim().split(/\s+/)
@@ -135,30 +209,44 @@ function localTemps(): StatsTemp[] {
   } catch { return [] }
 }
 
-function localTopProcess(): { name: string; cpu: number; mem: number } | null {
+async function localTopProcess(): Promise<{ name: string; cpu: number; mem: number } | null> {
   try {
     if (process.platform === 'win32') {
-      const raw = execSync(
-        'powershell -NoProfile -Command "Get-Process | Sort-Object CPU -Descending | Select-Object -First 1 Name, CPU, WorkingSet | ConvertTo-Json -Compress"',
-        { timeout: 3000 }
-      ).toString().trim()
+      const raw = await ps(
+        'Get-Process | Sort-Object CPU -Descending | Select-Object -First 1 Name,CPU,WorkingSet | ConvertTo-Json -Compress',
+        3000
+      )
       if (!raw) return null
       const p = JSON.parse(raw)
       return { name: p.Name, cpu: p.CPU || 0, mem: p.WorkingSet || 0 }
     } else if (process.platform === 'darwin') {
-      const raw = execSync('ps -rc -eo pcpu,pmem,comm | head -n 2 | tail -n 1', { timeout: 3000 }).toString().trim()
+      const raw = (await sh('ps -rc -eo pcpu,pmem,comm | head -n 2 | tail -n 1', 3000)).trim()
       const m = raw.match(/^([\d.]+)\s+([\d.]+)\s+(.*)$/)
       return m ? { name: m[3].split(/\s+/)[0].split('/').pop() || '', cpu: Number(m[1]), mem: Number(m[2]) } : null
     } else {
-      const raw = execSync('ps -c -eo pcpu,pmem,comm --sort=-pcpu | head -n 2 | tail -n 1', { timeout: 3000 }).toString().trim()
+      const raw = (await sh('ps -c -eo pcpu,pmem,comm --sort=-pcpu | head -n 2 | tail -n 1', 3000)).trim()
       const m = raw.match(/^([\d.]+)\s+([\d.]+)\s+(.*)$/)
       return m ? { name: m[3].split(/\s+/)[0].split('/').pop() || '', cpu: Number(m[1]), mem: Number(m[2]) } : null
     }
   } catch { return null }
 }
 
+// Disk usage and the top process change slowly and are the most expensive to
+// query (each spawns PowerShell on Windows); cache them so the 3 s poll only
+// refreshes them occasionally. Network counters must stay fresh every poll so
+// the byte-rate delta in the status bar is correct.
+const diskCached = cached(30_000, localDisk)
+const topCached = cached(15_000, localTopProcess)
+
 async function getLocalStats(): Promise<RemoteStats> {
-  const [cpu, disk] = await Promise.all([cpuPercent(), Promise.resolve(localDisk())])
+  // All child processes run concurrently and non-blockingly; the main process
+  // stays responsive while they resolve.
+  const [cpu, disk, net, topProcess] = await Promise.all([
+    cpuPercent(),
+    diskCached(),
+    localNet(),
+    topCached()
+  ])
   const totalMem = os.totalmem()
   const freeMem = os.freemem()
   const usedMem = totalMem - freeMem
@@ -169,12 +257,12 @@ async function getLocalStats(): Promise<RemoteStats> {
     mem: { used: usedMem, total: totalMem, percent: Math.round(usedMem / totalMem * 1000) / 10 },
     swap: { used: 0, total: 0, percent: 0 },
     disk,
-    net: localNet(),
+    net,
     load: [Math.round(loadAvg[0] * 100) / 100, Math.round(loadAvg[1] * 100) / 100, Math.round(loadAvg[2] * 100) / 100],
     uptimeSecs: os.uptime(),
     procs: 0,
     temps: localTemps(),
-    topProcess: localTopProcess(),
+    topProcess,
     source: 'local',
     hostname: os.hostname()
   }
