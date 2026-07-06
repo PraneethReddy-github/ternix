@@ -254,7 +254,29 @@ ternix/
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Installation
+
+### Windows
+- **Winget (Official):**
+  ```bash
+  winget install ternix
+  ```
+- **Scoop (Custom Bucket):**
+  ```bash
+  scoop bucket add ternix https://github.com/PraneethReddy-github/ternix
+  scoop install ternix
+  ```
+- **Direct Download:** Get the `.exe` installer or portable version from the [Releases page](https://github.com/PraneethReddy-github/ternix/releases).
+
+### Linux
+- Download the `.AppImage` or `.deb` package from the [Releases page](https://github.com/PraneethReddy-github/ternix/releases).
+
+### macOS
+- Download the `.dmg` or `.zip` from the [Releases page](https://github.com/PraneethReddy-github/ternix/releases).
+
+---
+
+## 🛠️ Building from Source
 
 ### Prerequisites
 
