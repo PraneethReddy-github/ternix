@@ -72,7 +72,7 @@ function ContextMenuView({ x, y, items, onClose }: ContextMenuState & { onClose:
             key={i}
             disabled={item.disabled}
             className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors disabled:opacity-40 disabled:hover:bg-transparent ${
-              item.danger ? 'text-danger hover:bg-danger hover:text-white' : 'text-text hover:bg-accent hover:text-white'
+              item.danger ? 'text-danger hover:bg-danger hover:text-white' : 'text-text hover:bg-border'
             }`}
             onClick={() => {
               item.onClick?.()

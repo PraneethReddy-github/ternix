@@ -100,21 +100,37 @@ export interface RemoteStats {
 
 // ── Local machine stats (Node.js) ─────────────────────────────────────────
 
+let localLastCpu: { idle: number, total: number } | null = null
+
 function cpuPercent(): Promise<number> {
   return new Promise((resolve) => {
-    const start = os.cpus().map((c) => c.times)
-    setTimeout(() => {
-      const end = os.cpus().map((c) => c.times)
-      let idle = 0, total = 0
-      for (let i = 0; i < start.length; i++) {
-        const ds = end[i].idle - start[i].idle
-        const dt = Object.values(end[i]).reduce((a, b) => a + b, 0) -
-                   Object.values(start[i]).reduce((a, b) => a + b, 0)
-        idle += ds
-        total += dt
-      }
-      resolve(total === 0 ? 0 : Math.round((1 - idle / total) * 1000) / 10)
-    }, 150)
+    const current = os.cpus().map((c) => c.times)
+    let idle = 0, total = 0
+    for (const times of current) {
+      idle += times.idle
+      total += Object.values(times).reduce((a, b) => a + b, 0)
+    }
+
+    if (!localLastCpu) {
+      localLastCpu = { idle, total }
+      setTimeout(() => {
+        const next = os.cpus().map((c) => c.times)
+        let i2 = 0, t2 = 0
+        for (const times of next) {
+          i2 += times.idle
+          t2 += Object.values(times).reduce((a, b) => a + b, 0)
+        }
+        localLastCpu = { idle: i2, total: t2 }
+        const dt = t2 - total
+        resolve(dt === 0 ? 0 : Math.round((1 - (i2 - idle) / dt) * 1000) / 10)
+      }, 150)
+      return
+    }
+
+    const dt = total - localLastCpu.total
+    const di = idle - localLastCpu.idle
+    localLastCpu = { idle, total }
+    resolve(dt === 0 ? 0 : Math.round((1 - di / dt) * 1000) / 10)
   })
 }
 
@@ -209,16 +225,41 @@ function localTemps(): StatsTemp[] {
   } catch { return [] }
 }
 
+let localProcsState: { time: number; procs: Map<number, { cpu: number }> } | null = null
+
 async function localTopProcess(): Promise<{ name: string; cpu: number; mem: number } | null> {
   try {
     if (process.platform === 'win32') {
       const raw = await ps(
-        'Get-Process | Sort-Object CPU -Descending | Select-Object -First 1 Name,CPU,WorkingSet | ConvertTo-Json -Compress',
+        'Get-Process | Select-Object Id,Name,CPU,WorkingSet | ConvertTo-Json -Compress',
         3000
       )
       if (!raw) return null
-      const p = JSON.parse(raw)
-      return { name: p.Name, cpu: p.CPU || 0, mem: p.WorkingSet || 0 }
+      const procs = psJsonArray(raw)
+      const now = Date.now()
+      const currentProcs = new Map<number, { cpu: number }>()
+      let topProc: { name: string; cpu: number; mem: number } | null = null
+      let maxPct = -1
+      
+      for (const p of procs) {
+        if (p.CPU == null || p.Name === 'Idle') continue
+        currentProcs.set(p.Id, { cpu: p.CPU })
+        
+        if (localProcsState) {
+          const old = localProcsState.procs.get(p.Id)
+          if (old && p.CPU >= old.cpu) {
+            const dtSec = (now - localProcsState.time) / 1000
+            const dCpu = p.CPU - old.cpu
+            const pct = (dCpu / dtSec) / os.cpus().length * 100
+            if (pct > maxPct) {
+              maxPct = pct
+              topProc = { name: p.Name, cpu: Math.round(pct * 10) / 10, mem: p.WorkingSet || 0 }
+            }
+          }
+        }
+      }
+      localProcsState = { time: now, procs: currentProcs }
+      return topProc
     } else if (process.platform === 'darwin') {
       const raw = (await sh('ps -rc -eo pcpu,pmem,comm | head -n 2 | tail -n 1', 3000)).trim()
       const m = raw.match(/^([\d.]+)\s+([\d.]+)\s+(.*)$/)
@@ -284,8 +325,15 @@ const REMOTE_CMD = [
   '            p = open("/proc/stat").readline().split()',
   '            v = list(map(int, p[1:]))',
   '            return v[3]+v[4], sum(v)',
-  '        i1,t1 = rd(); time.sleep(0.2); i2,t2 = rd(); dt = t2-t1',
-  '        return round(100.0*(1.0-(i2-i1)/dt),1) if dt else 0.0',
+  '        i2,t2 = rd()',
+  '        tmp = f"/tmp/.tnx_cpu_{os.getuid()}"',
+  '        try:',
+  '            i1,t1 = map(int, open(tmp).read().split())',
+  '        except:',
+  '            time.sleep(0.2); i1,t1 = i2,t2; i2,t2 = rd()',
+  '        open(tmp, "w").write(f"{i2} {t2}")',
+  '        dt = t2-t1',
+  '        return round(100.0*(1.0-(i2-i1)/dt),1) if dt > 0 else 0.0',
   '    except: return 0.0',
   '',
   'def mem_info():',

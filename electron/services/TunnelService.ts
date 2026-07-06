@@ -13,6 +13,7 @@ interface RunningTunnel {
   bytes: number
   error?: string
   client: Client
+  onTcpConnection?: (...args: any[]) => void
 }
 
 /** Manages SSH port-forwarding (local -L, remote -R, dynamic -D / SOCKS5). */
@@ -24,7 +25,9 @@ class TunnelServiceImpl {
     if (!tunnel) throw new Error('Tunnel not found')
     const client = ConnectionManager.get(tabId)?.getSshClient?.()
     if (!client) throw new Error('Tunnel requires an active SSH connection')
-    if (this.running.has(tunnelId)) return this.toActive(this.running.get(tunnelId)!)
+    const existing = this.running.get(tunnelId)
+    if (existing && existing.status !== 'failed') return this.toActive(existing)
+    if (existing) this.stop(tunnelId) // clear a failed entry (and its listeners) before retrying
 
     const rt: RunningTunnel = { tunnel, tabId, status: 'pending', bytes: 0, client }
     this.running.set(tunnelId, rt)
@@ -50,6 +53,7 @@ class TunnelServiceImpl {
       if (rt.tunnel.tunnel_type === 'remote' && rt.tunnel.remote_host != null && rt.tunnel.remote_port != null) {
         rt.client.unforwardIn(rt.tunnel.remote_host, rt.tunnel.remote_port, () => {})
       }
+      if (rt.onTcpConnection) rt.client.removeListener('tcp connection', rt.onTcpConnection)
     } catch {
       /* ignore */
     }
@@ -92,12 +96,13 @@ class TunnelServiceImpl {
     const { tunnel, client } = rt
     return new Promise((resolve, reject) => {
       client.forwardIn(tunnel.remote_host || '127.0.0.1', tunnel.remote_port || 0, (err) => (err ? reject(err) : resolve()))
-      client.on('tcp connection', (info, accept) => {
+      rt.onTcpConnection = (info: any, accept: any) => {
         if (info.destPort !== tunnel.remote_port) return
         const stream = accept()
         const local = net.connect(tunnel.local_port, tunnel.local_host || '127.0.0.1')
         this.meter(rt, local, stream)
-      })
+      }
+      client.on('tcp connection', rt.onTcpConnection)
     })
   }
 

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Plug } from 'lucide-react'
+import { Plus, Trash2, Plug, Play } from 'lucide-react'
 import type { Tunnel, TunnelType } from '@shared/index'
 import { Modal, Field } from '@/components/ui/Modal'
 import { useUiStore } from '@/store/useUiStore'
+import { useTabStore } from '@/store/useTabStore'
 
 export function TunnelDialog({ sessionId, onClose }: { sessionId: number; onClose: () => void }) {
   const [tunnels, setTunnels] = useState<Tunnel[]>([])
@@ -34,6 +35,13 @@ export function TunnelDialog({ sessionId, onClose }: { sessionId: number; onClos
     load()
   }
 
+  const start = async (t: Tunnel) => {
+    const pane = useTabStore.getState().tabs.flatMap((tab) => tab.panes).find((p) => p.sessionId === sessionId && p.state === 'connected')
+    if (!pane) return notify('Connect this session first', 'error')
+    const active = await window.ternix.tunnels.start(t.id, pane.id)
+    notify(active.status === 'failed' ? active.error || 'Tunnel failed to start' : 'Tunnel started', active.status === 'failed' ? 'error' : 'success')
+  }
+
   return (
     <Modal
       title="Port forwarding"
@@ -60,6 +68,7 @@ export function TunnelDialog({ sessionId, onClose }: { sessionId: number; onClos
               <label className="flex items-center gap-1 text-[11px] text-muted cursor-pointer">
                 <input type="checkbox" checked={t.auto_start} onChange={() => toggleAuto(t)} /> auto-start
               </label>
+              <button className="text-muted hover:text-accent" title="Start now" onClick={() => start(t)}><Play size={14} /></button>
               <button className="text-muted hover:text-danger" onClick={() => remove(t.id)}><Trash2 size={14} /></button>
             </div>
           ))}

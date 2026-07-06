@@ -41,8 +41,6 @@ export function SessionTree() {
   const sessionContext = (e: React.MouseEvent, s: Session) =>
     open(e, [
       { label: 'Connect', onClick: () => connect(s) },
-      { label: 'Connect in split right', onClick: () => { const t = useTabStore.getState(); if (t.activeTabId) { t.splitPane(t.activeTabId, 'h'); connectSession(s, useTabStore) } else { connect(s) } } },
-      { label: 'Open SFTP', onClick: () => { connect(s); useUiStore.getState().toggleSftp() } },
       { separator: true },
       { label: 'Edit', onClick: () => openDialog({ kind: 'newSession', session: s }) },
       { label: 'Duplicate', onClick: () => openDialog({ kind: 'newSession', session: s, duplicate: true }) },

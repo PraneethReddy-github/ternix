@@ -100,16 +100,16 @@ export function StatusBar() {
           <>
             <span className="opacity-30">·</span>
             <span className="flex items-center gap-0.5" title={`CPU ${stats.cpu.toFixed(2)}%`}>
-              <Cpu size={10} className="opacity-50" />
+              <Cpu size={13} className="opacity-50" />
               <span>{stats.cpu.toFixed(2)}%</span>
             </span>
             <span className="flex items-center gap-0.5" title={`Memory ${stats.mem.percent.toFixed(2)}%`}>
-              <MemoryStick size={10} className="opacity-50" />
+              <MemoryStick size={13} className="opacity-50" />
               <span>{stats.mem.percent.toFixed(2)}%</span>
             </span>
             {hasNet && (
               <span className="flex items-center gap-0.5" title="Network RX / TX">
-                <Network size={10} className="opacity-50" />
+                <Network size={13} className="opacity-50" />
                 <span>↓{fmtBytes(rxRate)}/s</span>
                 <span className="ml-0.5">↑{fmtBytes(txRate)}/s</span>
               </span>
