@@ -74,6 +74,7 @@ export interface TernixApi {
     open(tabId: string): Promise<void>
     listDir(tabId: string, remotePath: string): Promise<SftpEntry[]>
     realpath(tabId: string, remotePath: string): Promise<string>
+    cwd(tabId: string): Promise<string | null>
     download(tabId: string, remotePath: string, localPath: string): Promise<string>
     upload(tabId: string, localPath: string, remotePath: string): Promise<string>
     mkdir(tabId: string, remotePath: string): Promise<void>

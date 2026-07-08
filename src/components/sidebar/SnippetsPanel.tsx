@@ -5,6 +5,7 @@ import { useTabStore } from '@/store/useTabStore'
 import { useUiStore } from '@/store/useUiStore'
 import { PanelHeader } from '@/components/layout/Sidebar'
 import { fuzzyFilter } from '@/utils/fuzzy'
+import { runCommandsSequentially } from '@/utils/runCommands'
 
 /**
  * Expand ${VAR} placeholders by prompting the user for each unique variable.
@@ -55,7 +56,10 @@ export function SnippetsPanel() {
     const pane = useTabStore.getState().getActivePane()
     if (!pane) return notify('No active terminal', 'error')
     expandSnippet(snip.command, (expanded) => {
-      window.ternix.terminal.write(pane.id, expanded + '\r')
+      // Multi-line snippets run line-by-line, gated on the prompt returning, so
+      // long/interactive commands don't cause later lines to be flushed as
+      // type-ahead. See runCommandsSequentially.
+      runCommandsSequentially(pane.id, expanded)
     })
   }
 
@@ -67,8 +71,17 @@ export function SnippetsPanel() {
     const path = await window.ternix.system.saveFile('snippets.json', json)
     if (path) notify('Snippets exported', 'success')
   }
-  const importJson = () => {
-    openDialog({ kind: 'exportImport' })
+  const importJson = async () => {
+    const path = await window.ternix.system.selectFile()
+    if (!path) return
+    try {
+      const json = await window.ternix.system.readFile(path)
+      const n = await window.ternix.snippets.import(json)
+      notify(`Imported ${n} snippet(s)`, 'success')
+      load()
+    } catch (e: any) {
+      notify(e.message, 'error')
+    }
   }
 
   const filtered = fuzzyFilter(filter, snippets, (s) => `${s.name} ${s.description ?? ''} ${s.tags.join(' ')}`)

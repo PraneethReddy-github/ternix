@@ -36,7 +36,12 @@ export function FileRow({
       onClick={onSelect}
       onDoubleClick={onOpen}
       onContextMenu={onContext}
-      className={cn('cursor-pointer select-none', selected ? 'bg-accent/20' : 'hover:bg-surface-2')}
+      className={cn(
+        'cursor-pointer select-none',
+        selected
+          ? 'bg-accent/30 shadow-[inset_2px_0_0_var(--tx-accent)] hover:bg-accent/40'
+          : 'hover:bg-surface-2'
+      )}
     >
       <td className="py-1 pl-2 flex items-center gap-2 truncate">
         {iconFor(entry)}

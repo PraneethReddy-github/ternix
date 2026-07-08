@@ -59,6 +59,7 @@ const api: TernixApi = {
     open: (tabId) => invoke('sftp:open', tabId),
     listDir: (tabId, p) => invoke('sftp:listDir', tabId, p),
     realpath: (tabId, p) => invoke('sftp:realpath', tabId, p),
+    cwd: (tabId) => invoke('sftp:cwd', tabId),
     download: (tabId, r, l) => invoke('sftp:download', tabId, r, l),
     upload: (tabId, l, r) => invoke('sftp:upload', tabId, l, r),
     mkdir: (tabId, p) => invoke('sftp:mkdir', tabId, p),

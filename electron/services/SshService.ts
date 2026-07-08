@@ -117,11 +117,6 @@ class SshServiceImpl {
     // ────────────────────────────────────────────────────────────────────────
 
     const client = await this.connectChain(tabId, session, onetimePassword, onetimeKeyId)
-    let banner: string | undefined
-    client.on('banner', (msg) => {
-      banner = msg
-      if (settingsRepo.get('ssh.showBanner') !== 'false') ConnectionManager.pushData(tabId, msg.replace(/\n/g, '\r\n'))
-    })
 
     const channel = await new Promise<ClientChannel>((resolve, reject) => {
       client.shell(
@@ -177,7 +172,7 @@ class SshServiceImpl {
 
     sessionsRepo.markConnected(session.id)
     ConnectionManager.pushStatus(tabId, 'connected')
-    return { backend, banner }
+    return { backend }
   }
 
   /** Recursively connect through any configured jump-host chain, returning the target client. */
@@ -202,8 +197,36 @@ class SshServiceImpl {
 
     return new Promise<Client>((resolve, reject) => {
       const client = new Client()
+      let settled = false
+
+      // Our own connect deadline. ssh2's readyTimeout can't be paused, but an
+      // interactive auth flow (e.g. Tailscale SSH's browser check) legitimately
+      // takes longer than a handshake — so we cancel this the moment the server
+      // sends a banner or keyboard-interactive prompt.
+      const timer = setTimeout(() => {
+        settled = true
+        client.end()
+        reject(new Error('Timed out while waiting for connection'))
+      }, Number(settingsRepo.get('ssh.connectTimeout') ?? '20000'))
+      const finishConnect = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        fn()
+      }
+
+      // Banners are sent DURING authentication, before 'ready'. Show them as they
+      // arrive so prompts like Tailscale SSH's "visit this URL to authenticate"
+      // appear in the terminal — and stop the clock, since auth is now interactive.
+      client.on('banner', (msg: string) => {
+        clearTimeout(timer)
+        if (settingsRepo.get('ssh.showBanner') !== 'false') {
+          ConnectionManager.pushData(tabId, msg.replace(/\r?\n/g, '\r\n'))
+        }
+      })
 
       client.on('keyboard-interactive', (_name, _instr, _lang, prompts, finish) => {
+        clearTimeout(timer)
         // If a password is stored and the only prompt is a password, answer automatically.
         if (secrets.password && prompts.length === 1 && /password/i.test(prompts[0].prompt)) {
           finish([secrets.password])
@@ -218,8 +241,8 @@ class SshServiceImpl {
         })
       })
 
-      client.on('ready', () => resolve(client))
-      client.on('error', (err) => reject(err))
+      client.on('ready', () => finishConnect(() => resolve(client)))
+      client.on('error', (err) => finishConnect(() => reject(err)))
 
       client.connect(config)
     })
@@ -239,7 +262,7 @@ class SshServiceImpl {
       username: session.username || settingsRepo.get('ssh.defaultUsername') || undefined,
       keepaliveInterval: (session.keepalive_interval || 30) * 1000,
       keepaliveCountMax: session.keepalive_count_max || 3,
-      readyTimeout: Number(settingsRepo.get('ssh.connectTimeout') ?? '20000'),
+      readyTimeout: 0, // we run our own cancelable timer in connectOne (see there)
       tryKeyboard: true,
       hostVerifier: ((keyOrHash: Buffer, cb: (ok: boolean) => void) => {
         this.verifyHostKey(tabId, session, keyOrHash).then(cb).catch(() => cb(false))

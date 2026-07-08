@@ -31,8 +31,10 @@ export function PromptDialog({
           <button
             className="tx-btn-primary"
             onClick={() => {
-              onSubmit(val)
+              // Close BEFORE onSubmit: onSubmit may open the next dialog (e.g. the
+              // next snippet variable), and closing after would pop that new one.
               onClose()
+              onSubmit(val)
             }}
           >
             OK
@@ -42,8 +44,8 @@ export function PromptDialog({
     >
       <form onSubmit={(e) => {
         e.preventDefault()
-        onSubmit(val)
         onClose()
+        onSubmit(val)
       }}>
         <Field label={label || ''}>
           <input

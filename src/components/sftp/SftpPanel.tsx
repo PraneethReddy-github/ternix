@@ -64,27 +64,31 @@ export function SftpPanel() {
   }
 
   const transfer = async (payload: DragPayload, targetDir: string) => {
-    try {
-      if (payload.side === 'local') {
-        // local → remote (upload)
-        const existing = new Set((await window.ternix.sftp.listDir(tabId, targetDir)).map((e) => e.name))
-        const finalName = await resolveName(existing, payload.entry.name)
-        if (!finalName) return notify(`Skipped ${payload.entry.name}`, 'info')
-        notify(`Uploading ${payload.entry.name}…`, 'info')
-        await window.ternix.sftp.upload(tabId, payload.entry.path, posixJoin(targetDir, finalName))
-        remote.refresh()
-      } else {
-        // remote → local (download)
-        const existing = new Set((await window.ternix.localfs.listDir(targetDir)).map((e) => e.name))
-        const finalName = await resolveName(existing, payload.entry.name)
-        if (!finalName) return notify(`Skipped ${payload.entry.name}`, 'info')
-        notify(`Downloading ${payload.entry.name}…`, 'info')
-        await window.ternix.sftp.download(tabId, payload.entry.path, localJoin(targetDir, finalName))
-        local.refresh()
+    const toRemote = payload.side === 'local' // upload; else download
+    // Names already in the destination — reused across the batch for conflict checks.
+    const existing = new Set(
+      (toRemote ? await window.ternix.sftp.listDir(tabId, targetDir) : await window.ternix.localfs.listDir(targetDir)).map((e) => e.name)
+    )
+    for (const entry of payload.entries) {
+      try {
+        const finalName = await resolveName(existing, entry.name)
+        if (!finalName) {
+          notify(`Skipped ${entry.name}`, 'info')
+          continue
+        }
+        existing.add(finalName)
+        if (toRemote) {
+          notify(`Uploading ${entry.name}…`, 'info')
+          await window.ternix.sftp.upload(tabId, entry.path, posixJoin(targetDir, finalName))
+        } else {
+          notify(`Downloading ${entry.name}…`, 'info')
+          await window.ternix.sftp.download(tabId, entry.path, localJoin(targetDir, finalName))
+        }
+      } catch (e: any) {
+        notify(e.message, 'error')
       }
-    } catch (e: any) {
-      notify(e.message, 'error')
     }
+    ;(toRemote ? remote : local).refresh()
   }
 
   const openEntry = (side: 'local' | 'remote') => (entry: SftpEntry) => {
@@ -123,58 +127,64 @@ export function SftpPanel() {
     })
   }
 
-  const contextItems = (entry: SftpEntry, side: 'local' | 'remote'): MenuItem[] => {
+  const contextItems = (entries: SftpEntry[], side: 'local' | 'remote'): MenuItem[] => {
     const pane = side === 'local' ? local : remote
+    const single = entries.length === 1 ? entries[0] : null
+    const many = entries.length
     const items: MenuItem[] = []
     if (side === 'remote') {
-      items.push({ label: 'Download', onClick: () => transfer({ side: 'remote', entry }, useSettingsStore.getState().get('transfer.downloadDir') || local.path) })
-      items.push({ label: 'Edit permissions (chmod)', onClick: () => setChmodTarget(entry) })
+      items.push({ label: single ? 'Download' : `Download ${many} items`, onClick: () => transfer({ side: 'remote', entries }, useSettingsStore.getState().get('transfer.downloadDir') || local.path) })
+      if (single) items.push({ label: 'Edit permissions (chmod)', onClick: () => setChmodTarget(single) })
     } else {
-      items.push({ label: 'Upload', onClick: () => transfer({ side: 'local', entry }, remote.path) })
-      items.push({ label: 'Open', onClick: () => window.ternix.system.openPath(entry.path) })
+      items.push({ label: single ? 'Upload' : `Upload ${many} items`, onClick: () => transfer({ side: 'local', entries }, remote.path) })
+      if (single) items.push({ label: 'Open', onClick: () => window.ternix.system.openPath(single.path) })
     }
-    items.push({ label: 'Copy path', onClick: () => { window.ternix.system.writeClipboard(entry.path); notify('Path copied', 'success') } })
-    items.push({
-      label: 'Rename',
-      onClick: () => {
-        useUiStore.getState().openDialog({
-          kind: 'prompt',
-          title: 'Rename',
-          label: 'New name',
-          defaultValue: entry.name,
-          onSubmit: async (name) => {
-            if (!name) return
-            const dir = side === 'local' ? entry.path.slice(0, entry.path.length - entry.name.length) : entry.path.replace(/[^/]+$/, '')
-            const next = side === 'local' ? localJoin(dir, name) : posixJoin(dir.replace(/\/$/, ''), name)
-            try {
-              if (side === 'local') await window.ternix.localfs.rename(entry.path, next)
-              else await window.ternix.sftp.rename(tabId, entry.path, next)
-              pane.refresh()
-            } catch (e: any) {
-              notify(e.message, 'error')
+    if (single) {
+      items.push({ label: 'Copy path', onClick: () => { window.ternix.system.writeClipboard(single.path); notify('Path copied', 'success') } })
+      items.push({
+        label: 'Rename',
+        onClick: () => {
+          useUiStore.getState().openDialog({
+            kind: 'prompt',
+            title: 'Rename',
+            label: 'New name',
+            defaultValue: single.name,
+            onSubmit: async (name) => {
+              if (!name) return
+              const dir = side === 'local' ? single.path.slice(0, single.path.length - single.name.length) : single.path.replace(/[^/]+$/, '')
+              const next = side === 'local' ? localJoin(dir, name) : posixJoin(dir.replace(/\/$/, ''), name)
+              try {
+                if (side === 'local') await window.ternix.localfs.rename(single.path, next)
+                else await window.ternix.sftp.rename(tabId, single.path, next)
+                pane.refresh()
+              } catch (e: any) {
+                notify(e.message, 'error')
+              }
             }
-          }
-        })
-      }
-    })
+          })
+        }
+      })
+    }
     items.push({ separator: true })
     items.push({
-      label: 'Delete',
+      label: single ? 'Delete' : `Delete ${many} items`,
       danger: true,
       onClick: () =>
         useUiStore.getState().openDialog({
           kind: 'confirm',
           title: 'Delete',
-          message: `Delete "${entry.name}"?`,
+          message: single ? `Delete "${single.name}"?` : `Delete ${many} items?`,
           danger: true,
           onConfirm: async () => {
-            try {
-              if (side === 'local') await window.ternix.localfs.delete(entry.path, entry.type === 'directory')
-              else await window.ternix.sftp.delete(tabId, entry.path, entry.type === 'directory')
-              pane.refresh()
-            } catch (e: any) {
-              notify(e.message, 'error')
+            for (const entry of entries) {
+              try {
+                if (side === 'local') await window.ternix.localfs.delete(entry.path, entry.type === 'directory')
+                else await window.ternix.sftp.delete(tabId, entry.path, entry.type === 'directory')
+              } catch (e: any) {
+                notify(e.message, 'error')
+              }
             }
+            pane.refresh()
           }
         })
     })

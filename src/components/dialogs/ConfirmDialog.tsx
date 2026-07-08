@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 
 export function ConfirmDialog({
@@ -20,6 +21,29 @@ export function ConfirmDialog({
     onClose()
   }
 
+  const handleConfirm = () => {
+    // Close before onConfirm — it may open another dialog (see PromptDialog).
+    onClose()
+    onConfirm()
+  }
+
+  // Enter confirms, regardless of which button holds focus (delete dialogs
+  // autoFocus Cancel for safety). Capture phase + stopPropagation so xterm —
+  // whose textarea keydown fires in the target phase — never writes the \r to
+  // the PTY behind the dialog when the terminal still holds focus.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        e.stopPropagation()
+        handleConfirm()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <Modal
       title={title}
@@ -27,15 +51,13 @@ export function ConfirmDialog({
       onClose={handleClose}
       footer={
         <>
-          <button className="tx-btn-ghost border border-border" onClick={handleClose}>
+          <button className="tx-btn-ghost border border-border" onClick={handleClose} autoFocus={danger}>
             Cancel
           </button>
           <button
             className={danger ? 'tx-btn-danger' : 'tx-btn-primary'}
-            onClick={() => {
-              onConfirm()
-              onClose()
-            }}
+            autoFocus={!danger}
+            onClick={handleConfirm}
           >
             {danger ? 'Delete' : 'Confirm'}
           </button>

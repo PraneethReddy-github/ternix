@@ -20,26 +20,29 @@ export function DialogHost() {
         const isTop = i === dialogs.length - 1
         // Only the top-most dialog handles ESC key to close
         const onClose = isTop ? close : () => {}
-        
+        // Key by the dialog's stable id (not array index) so a chained dialog
+        // that replaces another gets a fresh component instead of inheriting its state.
+        const key = dialog._id
+
         switch (dialog.kind) {
           case 'confirm':
-            return <ConfirmDialog key={i} {...dialog} onClose={onClose} />
+            return <ConfirmDialog key={key} {...dialog} onClose={onClose} />
           case 'newSession':
-            return <NewSessionDialog key={i} session={dialog.session} groupId={dialog.groupId} duplicate={dialog.duplicate} onClose={onClose} />
+            return <NewSessionDialog key={key} session={dialog.session} groupId={dialog.groupId} duplicate={dialog.duplicate} onClose={onClose} />
           case 'keyVault':
-            return <KeyVaultDialog key={i} onClose={onClose} />
+            return <KeyVaultDialog key={key} onClose={onClose} />
           case 'tunnels':
-            return <TunnelDialog key={i} sessionId={dialog.sessionId} onClose={onClose} />
+            return <TunnelDialog key={key} sessionId={dialog.sessionId} onClose={onClose} />
           case 'snippet':
-            return <SnippetDialog key={i} id={dialog.id} onClose={onClose} />
+            return <SnippetDialog key={key} id={dialog.id} onClose={onClose} />
           case 'themeEditor':
-            return <ThemeEditorDialog key={i} baseId={dialog.baseId} onClose={onClose} />
+            return <ThemeEditorDialog key={key} baseId={dialog.baseId} onClose={onClose} />
           case 'exportImport':
-            return <ExportImportDialog key={i} onClose={onClose} />
+            return <ExportImportDialog key={key} onClose={onClose} />
           case 'connectionLog':
-            return <ConnectionLogDialog key={i} sessionId={dialog.sessionId} onClose={onClose} />
+            return <ConnectionLogDialog key={key} sessionId={dialog.sessionId} onClose={onClose} />
           case 'prompt':
-            return <PromptDialog key={i} {...dialog} onClose={onClose} />
+            return <PromptDialog key={key} {...dialog} onClose={onClose} />
           default:
             return null
         }

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
-import { createReadStream, createWriteStream, statSync, utimesSync } from 'node:fs'
-import { basename, posix } from 'node:path'
+import { createReadStream, createWriteStream, mkdirSync, readdirSync, statSync, utimesSync } from 'node:fs'
+import { basename, join, posix } from 'node:path'
 import type { SFTPWrapper, Stats } from 'ssh2'
 import type { SftpEntry, TransferProgress } from '@shared/index'
 import { ConnectionManager } from './ConnectionManager'
@@ -128,8 +128,15 @@ class SftpServiceImpl {
 
   async delete(tabId: string, remotePath: string, isDir: boolean): Promise<void> {
     const sftp = await this.wrapper(tabId)
-    if (isDir) await new Promise<void>((resolve, reject) => sftp.rmdir(remotePath, (err) => (err ? reject(err) : resolve())))
-    else await new Promise<void>((resolve, reject) => sftp.unlink(remotePath, (err) => (err ? reject(err) : resolve())))
+    if (!isDir) {
+      await new Promise<void>((resolve, reject) => sftp.unlink(remotePath, (err) => (err ? reject(err) : resolve())))
+      return
+    }
+    // rmdir only removes empty dirs — clear contents first (recursively).
+    for (const e of await this.listDir(tabId, remotePath)) {
+      await this.delete(tabId, e.path, e.type === 'directory')
+    }
+    await new Promise<void>((resolve, reject) => sftp.rmdir(remotePath, (err) => (err ? reject(err) : resolve())))
   }
 
   async rename(tabId: string, oldPath: string, newPath: string): Promise<void> {
@@ -145,6 +152,34 @@ class SftpServiceImpl {
   // ---- transfers ----
 
   async download(tabId: string, remotePath: string, localPath: string): Promise<string> {
+    const st = await this.stat(tabId, remotePath)
+    if (st.type === 'directory') return this.downloadDir(tabId, remotePath, localPath)
+    return this.downloadFile(tabId, remotePath, localPath)
+  }
+
+  // Enumerate the whole remote tree first, create every local dir (parents first),
+  // then download every file through one queue — so acquire()/maxConcurrent packs
+  // slots across the entire tree, not one folder at a time.
+  // ponytail: whole tree is held in memory + one big Promise.all; a 100k-file tree
+  // queues that many pending promises. Fine for real folders.
+  private async downloadDir(tabId: string, remoteDir: string, localDir: string): Promise<string> {
+    const dirs: string[] = []
+    const files: Array<[string, string]> = [] // [remote, local]
+    const walk = async (r: string, l: string): Promise<void> => {
+      dirs.push(l)
+      for (const e of await this.listDir(tabId, r)) {
+        const dest = join(l, e.name)
+        if (e.type === 'directory') await walk(e.path, dest)
+        else files.push([e.path, dest])
+      }
+    }
+    await walk(remoteDir, localDir)
+    for (const d of dirs) mkdirSync(d, { recursive: true })
+    await Promise.all(files.map(([r, l]) => this.downloadFile(tabId, r, l)))
+    return localDir
+  }
+
+  private async downloadFile(tabId: string, remotePath: string, localPath: string): Promise<string> {
     await this.acquire()
     try {
       const sftp = await this.wrapper(tabId)
@@ -162,6 +197,31 @@ class SftpServiceImpl {
   }
 
   async upload(tabId: string, localPath: string, remotePath: string): Promise<string> {
+    if (statSync(localPath).isDirectory()) return this.uploadDir(tabId, localPath, remotePath)
+    return this.uploadFile(tabId, localPath, remotePath)
+  }
+
+  // Mirror of downloadDir: enumerate the whole local tree, mkdir every remote dir
+  // (parents first), then upload every file through one maxConcurrent-gated queue.
+  private async uploadDir(tabId: string, localDir: string, remoteDir: string): Promise<string> {
+    const sftp = await this.wrapper(tabId)
+    const dirs: string[] = [] // remote dir paths, parents first
+    const files: Array<[string, string]> = [] // [local, remote]
+    const walk = (l: string, r: string): void => {
+      dirs.push(r)
+      for (const name of readdirSync(l)) {
+        const src = join(l, name)
+        if (statSync(src).isDirectory()) walk(src, posix.join(r, name))
+        else files.push([src, posix.join(r, name)])
+      }
+    }
+    walk(localDir, remoteDir)
+    for (const d of dirs) await new Promise<void>((res) => sftp.mkdir(d, () => res())) // ignore EEXIST — merge
+    await Promise.all(files.map(([l, r]) => this.uploadFile(tabId, l, r)))
+    return remoteDir
+  }
+
+  private async uploadFile(tabId: string, localPath: string, remotePath: string): Promise<string> {
     await this.acquire()
     try {
       const sftp = await this.wrapper(tabId)
@@ -205,12 +265,16 @@ class SftpServiceImpl {
     const transferId = crypto.randomUUID()
     const state: ActiveTransfer = { paused: false, cancelled: false }
     state.pauseFn = () => {
+      if (state.paused) return
       state.paused = true
       ;(read as any).pause?.()
+      emit('paused')
     }
     state.resumeFn = () => {
+      if (!state.paused) return
       state.paused = false
       ;(read as any).resume?.()
+      emit('active')
     }
     state.destroyFn = () => {
       (read as any).destroy?.()

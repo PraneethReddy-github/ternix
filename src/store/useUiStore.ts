@@ -13,12 +13,15 @@ export type DialogKind =
   | { kind: 'confirm'; title: string; message: string; danger?: boolean; onConfirm: () => void; onCancel?: () => void }
   | { kind: 'prompt'; title: string; label?: string; defaultValue?: string; password?: boolean; onSubmit: (val: string) => void }
 
+/** A queued dialog plus a stable id, so chained dialogs get fresh component state. */
+export type OpenDialog = DialogKind & { _id: number }
+
 interface UiState {
   activeView: ActivityView
   sidebarCollapsed: boolean
   paletteOpen: boolean
   sftpOpen: boolean
-  dialogs: DialogKind[]
+  dialogs: OpenDialog[]
   toast: { id: number; message: string; type: 'info' | 'error' | 'success' } | null
 
   setView: (v: ActivityView) => void
@@ -31,6 +34,7 @@ interface UiState {
 }
 
 let toastId = 0
+let dialogId = 0
 
 export const useUiStore = create<UiState>((set) => ({
   activeView: 'sessions',
@@ -44,7 +48,7 @@ export const useUiStore = create<UiState>((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   toggleSftp: () => set((s) => ({ sftpOpen: !s.sftpOpen })),
-  openDialog: (dialog) => set((s) => ({ dialogs: [...s.dialogs, dialog] })),
+  openDialog: (dialog) => set((s) => ({ dialogs: [...s.dialogs, { ...dialog, _id: ++dialogId }] })),
   closeDialog: () => set((s) => ({ dialogs: s.dialogs.slice(0, -1) })),
   notify: (message, type = 'info') => {
     const id = ++toastId

@@ -29,6 +29,8 @@ interface Entry {
 class ConnectionManagerImpl {
   private entries = new Map<string, Entry>()
   private recorders = new Map<string, (data: string) => void>()
+  /** Last working dir reported by the shell via OSC 7, keyed by tabId. */
+  private cwds = new Map<string, string>()
 
   register(tabId: string, backend: TerminalBackend, sessionName: string, host: string | null, sessionId: number | null): void {
     const logId = logRepo.start(sessionId, sessionName, host)
@@ -47,7 +49,29 @@ class ConnectionManagerImpl {
   pushData(tabId: string, data: string): void {
     const rec = this.recorders.get(tabId)
     if (rec) rec(data)
+    if (data.includes('\x1b]7;')) this.trackCwd(tabId, data)
     Bus.emit(`terminal:data:${tabId}`, data)
+  }
+
+  // Parse OSC 7 (ESC ] 7 ; file://host/path  ST) — shells emit it on each prompt
+  // when configured (starship, oh-my-posh, VTE distros, …). Used to open SFTP at
+  // the terminal's current dir. ponytail: a sequence split across two chunks is
+  // missed; not worth a per-tab reassembly buffer for a best-effort convenience.
+  private trackCwd(tabId: string, data: string): void {
+    const re = /\x1b\]7;file:\/\/[^/]*([^\x07\x1b]*)(?:\x07|\x1b\\)/g
+    let m: RegExpExecArray | null
+    let last: string | undefined
+    while ((m = re.exec(data)) !== null) last = m[1]
+    if (last === undefined) return
+    try {
+      this.cwds.set(tabId, decodeURIComponent(last))
+    } catch {
+      this.cwds.set(tabId, last)
+    }
+  }
+
+  getCwd(tabId: string): string | null {
+    return this.cwds.get(tabId) ?? null
   }
 
   pushStatus(tabId: string, state: string, message?: string): void {
@@ -78,6 +102,7 @@ class ConnectionManagerImpl {
     this.finishLog(tabId, 'closed by user')
     this.entries.delete(tabId)
     this.recorders.delete(tabId)
+    this.cwds.delete(tabId)
   }
 
   private finishLog(tabId: string, reason: string): void {

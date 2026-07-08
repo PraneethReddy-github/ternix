@@ -86,8 +86,12 @@ export function usePane(side: Side, tabId: string | null) {
             return
           }
 
+          // Prefer the terminal's current dir (OSC 7) so SFTP opens where the
+          // shell is, then the last-visited folder, then home.
+          const cwd = await window.ternix.sftp.cwd(tabId).catch(() => null)
           const stored = useSftpStore.getState().remotePaths[tabId]
-          if (!stored || !(await list(stored))) await list(home)
+          const initial = cwd || stored
+          if (!initial || !(await list(initial))) await list(home)
         } catch (e: any) {
           if (!cancelRef.current) {
             setError(`SFTP: ${e.message}`)

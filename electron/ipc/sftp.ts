@@ -4,6 +4,7 @@ import { readdirSync, mkdirSync, rmSync, renameSync, lstatSync } from 'node:fs'
 import { join, resolve as resolvePath } from 'node:path'
 import type { SftpEntry } from '@shared/index'
 import { SftpService } from '../services/SftpService'
+import { ConnectionManager } from '../services/ConnectionManager'
 
 function localModePerms(mode: number): string {
   const t = ['---', '--x', '-w-', '-wx', 'r--', 'r-x', 'rw-', 'rwx']
@@ -47,6 +48,7 @@ export function registerSftpHandlers(): void {
   handle<void>('sftp:open', (tabId: string) => SftpService.open(tabId))
   handle<SftpEntry[]>('sftp:listDir', (tabId: string, p: string) => SftpService.listDir(tabId, p))
   handle<string>('sftp:realpath', (tabId: string, p: string) => SftpService.realpath(tabId, p))
+  handle<string | null>('sftp:cwd', (tabId: string) => ConnectionManager.getCwd(tabId))
   handle<string>('sftp:download', (tabId: string, r: string, l: string) => SftpService.download(tabId, r, l))
   handle<string>('sftp:upload', (tabId: string, l: string, r: string) => SftpService.upload(tabId, l, r))
   handle<void>('sftp:mkdir', (tabId: string, p: string) => SftpService.mkdir(tabId, p))
