@@ -1,5 +1,6 @@
 import { useTabStore } from '@/store/useTabStore'
 import { useStatsStore } from '@/store/useStatsStore'
+import { activePanes, isDead, statsTargetFor } from '@/utils/statsTarget'
 import { Activity, Cpu, HardDrive, Network, RefreshCw, Server, Thermometer, Loader2, WifiOff } from 'lucide-react'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -77,9 +78,20 @@ function Label({ icon: Icon, text }: { icon: typeof Cpu; text: string }) {
 // ── Main panel ───────────────────────────────────────────────────────────────
 
 export function StatsPanel() {
-  const sshTabId = useTabStore((s) => {
-    const tab = s.tabs.find((t) => t.id === s.activeTabId)
-    return tab?.panes.find((p) => p.protocol === 'ssh' && p.state === 'connected')?.id ?? null
+  // Primitive selectors — a StatsTarget object would be a fresh reference every render.
+  const kind = useTabStore((s) => statsTargetFor(activePanes(s)).kind)
+  const tabId = useTabStore((s) => {
+    const t = statsTargetFor(activePanes(s))
+    return t.kind === 'remote' ? t.tabId : null
+  })
+  const host = useTabStore((s) => {
+    const t = statsTargetFor(activePanes(s))
+    return t.kind === 'local' ? null : t.host
+  })
+  const dead = useTabStore((s) => isDead(statsTargetFor(activePanes(s))))
+  const deadReason = useTabStore((s) => {
+    const t = statsTargetFor(activePanes(s))
+    return t.kind === 'pending' ? t.message : undefined
   })
 
   // All data comes from the always-on StatsPoller via the store
@@ -88,14 +100,16 @@ export function StatsPanel() {
   const rxHist   = useStatsStore((s) => s.rxHistory)
   const txHist   = useStatsStore((s) => s.txHistory)
 
-  const source   = stats?.source ?? (sshTabId ? 'remote' : 'local')
-  const hostname = stats?.hostname ?? (sshTabId ? '…' : 'Local Machine')
+  const source   = stats?.source ?? (kind === 'local' ? 'local' : 'remote')
+  const hostname = stats?.hostname ?? (kind === 'local' ? 'Local Machine' : (host ?? '…'))
 
-  // Manual refresh — triggers StatsPoller's next poll cycle by calling fetch directly
+  // Manual refresh. While the session is still connecting there is nothing to fetch —
+  // asking for stats with a null tabId would return the local machine's.
   const refresh = async () => {
+    if (kind === 'pending') return
     try {
-      const s = await (window as any).ternix.stats.fetch(sshTabId)
-      useStatsStore.getState().setLatest(s, sshTabId)
+      const s = await (window as any).ternix.stats.fetch(tabId)
+      useStatsStore.getState().setLatest(s, tabId)
     } catch { /* ignore */ }
   }
 
@@ -108,7 +122,12 @@ export function StatsPanel() {
           <div className="text-[10px] uppercase tracking-wide text-muted font-semibold">Monitor</div>
           <div className="text-[10px] text-text truncate">{hostname}</div>
         </div>
-        <button onClick={refresh} title="Refresh" className="text-muted hover:text-text transition-colors">
+        <button
+          onClick={refresh}
+          disabled={kind === 'pending'}
+          title={kind === 'pending' ? 'Waiting for the session to connect' : 'Refresh'}
+          className="text-muted hover:text-text transition-colors disabled:opacity-40 disabled:hover:text-muted"
+        >
           <RefreshCw size={11} />
         </button>
       </div>
@@ -123,15 +142,21 @@ export function StatsPanel() {
           <Server size={8} />
           {source === 'remote' ? 'SSH Session' : 'Local Machine'}
         </span>
-        {!stats && <Loader2 size={11} className="animate-spin text-muted" />}
+        {!stats && !dead && <Loader2 size={11} className="animate-spin text-muted" />}
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        {!stats ? (
+        {!stats && dead ? (
+          <div className="flex flex-col items-center justify-center h-32 gap-2 px-3 text-center">
+            <WifiOff size={20} className="text-danger opacity-60" />
+            <span className="text-[10px] text-danger leading-relaxed">{deadReason || 'Session disconnected'}</span>
+            <span className="text-[10px] text-muted opacity-60">Reconnect the session to see stats.</span>
+          </div>
+        ) : !stats ? (
           <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted">
             <Loader2 size={20} className="animate-spin opacity-40" />
-            <span className="text-[10px] opacity-50">Fetching stats…</span>
+            <span className="text-[10px] opacity-50">{kind === 'pending' ? 'Waiting for connection…' : 'Fetching stats…'}</span>
           </div>
         ) : (
           <div className="px-3 py-2 flex flex-col gap-3">

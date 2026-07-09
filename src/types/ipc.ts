@@ -53,7 +53,7 @@ export interface TernixApi {
     resize(tabId: string, cols: number, rows: number): void
     kill(tabId: string): Promise<void>
     onData(tabId: string, cb: (data: string) => void): () => void
-    onExit(tabId: string, cb: (info: { code: number; reason?: string }) => void): () => void
+    onExit(tabId: string, cb: (info: { code: number; reason?: string; clean?: boolean }) => void): () => void
     onStatus(tabId: string, cb: (status: { state: string; message?: string }) => void): () => void
     onHostKeyPrompt(cb: (p: HostKeyPrompt) => void): () => void
     respondHostKey(tabId: string, decision: HostKeyDecision): void
@@ -163,6 +163,8 @@ export interface TernixApi {
     export(target: ExportTarget, includeKeys: boolean, masterPassword?: string): Promise<string>
   }
   system: {
+    /** Absolute path of a dragged-in File, or '' if it isn't a real on-disk file. Synchronous. */
+    getPathForFile(file: File): string
     listSerialPorts(): Promise<{ path: string; manufacturer?: string }[]>
     openPath(path: string): Promise<void>
     showItemInFolder(path: string): Promise<void>

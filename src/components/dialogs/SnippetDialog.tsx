@@ -1,21 +1,28 @@
 import { useEffect, useState } from 'react'
 import type { Snippet } from '@shared/index'
 import { Modal, Field } from '@/components/ui/Modal'
+import { useTabStore } from '@/store/useTabStore'
 import { useUiStore } from '@/store/useUiStore'
 
 export function SnippetDialog({ id, onClose }: { id?: number; onClose: () => void }) {
   const notify = useUiStore((s) => s.notify)
+  const activeSessionId = useTabStore((s) => s.getActivePane()?.sessionId ?? null)
   const [form, setForm] = useState<Partial<Snippet>>({ name: '', command: '', description: '', tags: [], is_global: true })
 
   useEffect(() => {
     if (id) window.ternix.snippets.list().then((list) => { const s = list.find((x) => x.id === id); if (s) setForm(s) })
   }, [id])
 
+  // A snippet can only be scoped to the session that already owns it, or to the active one.
+  const ownerId = form.session_id ?? activeSessionId
+  const isGlobal = form.is_global !== false
+
   const save = async () => {
     if (!form.name?.trim() || !form.command?.trim()) return notify('Name and command are required', 'error')
+    const session_id = isGlobal ? null : ownerId
     try {
-      if (id) await window.ternix.snippets.update(id, form)
-      else await window.ternix.snippets.create({ name: form.name!, command: form.command!, description: form.description ?? null, tags: form.tags ?? [], is_global: form.is_global })
+      if (id) await window.ternix.snippets.update(id, { ...form, session_id })
+      else await window.ternix.snippets.create({ name: form.name!, command: form.command!, description: form.description ?? null, tags: form.tags ?? [], is_global: form.is_global, session_id })
       notify('Snippet saved', 'success')
       onClose()
     } catch (e: any) {
@@ -43,10 +50,16 @@ export function SnippetDialog({ id, onClose }: { id?: number; onClose: () => voi
       <Field label="Tags" hint="Comma-separated">
         <input className="tx-input" value={(form.tags ?? []).join(', ')} onChange={(e) => setForm({ ...form, tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean) })} />
       </Field>
-      <label className="flex items-center gap-2 text-[13px] text-text cursor-pointer">
-        <input type="checkbox" checked={form.is_global !== false} onChange={(e) => setForm({ ...form, is_global: e.target.checked })} />
+      <label className={`flex items-center gap-2 text-[13px] text-text ${ownerId == null ? 'opacity-60' : 'cursor-pointer'}`}>
+        <input
+          type="checkbox"
+          checked={isGlobal}
+          disabled={ownerId == null}
+          onChange={(e) => setForm({ ...form, is_global: e.target.checked })}
+        />
         Global snippet (available in all sessions)
       </label>
+      {ownerId == null && <div className="text-[11px] text-muted mt-1">Connect to a session to scope this snippet to it.</div>}
     </Modal>
   )
 }

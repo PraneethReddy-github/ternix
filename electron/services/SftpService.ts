@@ -1,11 +1,25 @@
 import crypto from 'node:crypto'
-import { createReadStream, createWriteStream, mkdirSync, readdirSync, statSync, utimesSync } from 'node:fs'
+import { createReadStream, createWriteStream, mkdirSync, readdirSync, rmSync, statSync, utimesSync } from 'node:fs'
 import { basename, join, posix } from 'node:path'
 import type { SFTPWrapper, Stats } from 'ssh2'
 import type { SftpEntry, TransferProgress } from '@shared/index'
 import { ConnectionManager } from './ConnectionManager'
 import { settingsRepo } from '../db/repo'
+import { ownerFromLongname } from './sftpOwner'
+import { summarize, TransferCancelledError } from './transferOutcome'
 import { Bus } from './bus'
+
+/**
+ * Bytes per SFTP request. ssh2's SFTP streams issue exactly one READ (or WRITE) and wait
+ * for the reply before issuing the next — there is no pipelining (see its own TODO above
+ * WriteStream in lib/protocol/SFTP.js). So throughput is chunkSize/RTT, and the chunk size
+ * is the entire story on a high-latency link. ssh2 defaults the read stream to 64 KiB and
+ * clamps any request to OPENSSH_MAX_PKT_LEN - PKT_RW_OVERHEAD, so ask for exactly that.
+ *
+ * ponytail: still one request in flight. For fastGet-class throughput this needs a real
+ * pipelined reader (N outstanding requests), which is the only way to beat RTT.
+ */
+const SFTP_CHUNK = 256 * 1024 - 2 * 1024 // 260096
 
 function modeToPermissions(mode: number): string {
   const types = ['---', '--x', '-w-', '-wx', 'r--', 'r-x', 'rw-', 'rwx']
@@ -99,8 +113,7 @@ class SftpServiceImpl {
         mode: attrs.mode,
         permissions: modeToPermissions(attrs.mode),
         modified: (attrs.mtime ?? 0) * 1000,
-        owner: String(attrs.uid ?? ''),
-        group: String(attrs.gid ?? '')
+        ...ownerFromLongname(item.longname, { owner: String(attrs.uid ?? ''), group: String(attrs.gid ?? '') })
       }
     })
   }
@@ -175,7 +188,13 @@ class SftpServiceImpl {
     }
     await walk(remoteDir, localDir)
     for (const d of dirs) mkdirSync(d, { recursive: true })
-    await Promise.all(files.map(([r, l]) => this.downloadFile(tabId, r, l)))
+    // allSettled, not all: cancelling one file must leave the other files running and the
+    // folder reported as finished-minus-that-file. Promise.all would reject on the first
+    // cancellation and make the whole folder look like it failed.
+    const outcome = summarize(await Promise.allSettled(files.map(([r, l]) => this.downloadFile(tabId, r, l))))
+    if (outcome.failures.length) {
+      throw new Error(`${outcome.failures.length} of ${files.length} file(s) failed: ${outcome.failures[0]}`)
+    }
     return localDir
   }
 
@@ -184,9 +203,11 @@ class SftpServiceImpl {
     try {
       const sftp = await this.wrapper(tabId)
       const st = await this.stat(tabId, remotePath)
-      const read = sftp.createReadStream(remotePath)
+      const read = sftp.createReadStream(remotePath, { highWaterMark: SFTP_CHUNK })
       const write = createWriteStream(localPath)
-      const result = await this.runTransfer('download', basename(remotePath), localPath, remotePath, st.size, read, write)
+      // Cancelling leaves a truncated file that looks like a real one — drop it.
+      const onCancel = () => { try { rmSync(localPath, { force: true }) } catch { /* best effort */ } }
+      const result = await this.runTransfer('download', basename(remotePath), localPath, remotePath, st.size, read, write, onCancel)
       if (this.preserveTimestamps() && st.modified) {
         try { utimesSync(localPath, new Date(st.modified), new Date(st.modified)) } catch { /* best effort */ }
       }
@@ -217,7 +238,10 @@ class SftpServiceImpl {
     }
     walk(localDir, remoteDir)
     for (const d of dirs) await new Promise<void>((res) => sftp.mkdir(d, () => res())) // ignore EEXIST — merge
-    await Promise.all(files.map(([l, r]) => this.uploadFile(tabId, l, r)))
+    const outcome = summarize(await Promise.allSettled(files.map(([l, r]) => this.uploadFile(tabId, l, r))))
+    if (outcome.failures.length) {
+      throw new Error(`${outcome.failures.length} of ${files.length} file(s) failed: ${outcome.failures[0]}`)
+    }
     return remoteDir
   }
 
@@ -226,9 +250,14 @@ class SftpServiceImpl {
     try {
       const sftp = await this.wrapper(tabId)
       const st = statSync(localPath)
-      const read = createReadStream(localPath)
+      // The chunk fs hands us becomes one WRITE request, so read in protocol-sized chunks.
+      const read = createReadStream(localPath, { highWaterMark: SFTP_CHUNK })
+      // Leave the write stream's highWaterMark at the default. Throughput is set by the
+      // chunk size above (one chunk == one WRITE); a larger hwm only lets pipe buffer a
+      // *second* chunk ahead, and pause/cancel then has to drain both before it bites.
       const write = sftp.createWriteStream(remotePath)
-      const result = await this.runTransfer('upload', basename(localPath), localPath, remotePath, st.size, read, write)
+      const onCancel = () => sftp.unlink(remotePath, () => { /* best effort */ })
+      const result = await this.runTransfer('upload', basename(localPath), localPath, remotePath, st.size, read, write, onCancel)
       if (this.preserveTimestamps()) {
         const t = Math.floor(st.mtimeMs / 1000)
         try { await new Promise<void>((res) => sftp.utimes(remotePath, t, t, () => res())) } catch { /* best effort */ }
@@ -260,7 +289,8 @@ class SftpServiceImpl {
     remotePath: string,
     total: number,
     read: NodeJS.ReadableStream,
-    write: NodeJS.WritableStream
+    write: NodeJS.WritableStream,
+    onCancel?: () => void
   ): Promise<string> {
     const transferId = crypto.randomUUID()
     const state: ActiveTransfer = { paused: false, cancelled: false }
@@ -322,12 +352,19 @@ class SftpServiceImpl {
           emit('active')
         }
       })
+      // ssh2's streams set emitClose:false and emit 'close' themselves once the remote
+      // handle is shut (closeStream), so by the time we get here the destination handle
+      // is closed and it is safe to delete the partial file.
+      const settleCancelled = () => {
+        onCancel?.()
+        emit('cancelled')
+        reject(new TransferCancelledError(filename))
+      }
       const onDone = () => {
         if (!this.transfers.has(transferId)) return
         this.transfers.delete(transferId)
         if (state.cancelled) {
-          emit('cancelled')
-          reject(new Error('Transfer cancelled'))
+          settleCancelled()
         } else {
           transferred = total
           emit('done')
@@ -339,7 +376,9 @@ class SftpServiceImpl {
       const onErr = (err: Error) => {
         if (!this.transfers.has(transferId)) return
         this.transfers.delete(transferId)
-        emit(state.cancelled ? 'cancelled' : 'error', err.message)
+        // A destroy() mid-flight can surface as a stream error; report the user's intent.
+        if (state.cancelled) return settleCancelled()
+        emit('error', err.message)
         reject(err)
       }
       read.on('error', onErr)

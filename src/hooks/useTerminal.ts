@@ -199,7 +199,16 @@ export function useTerminal(pane: Pane): TerminalController {
         .catch((err) => failed(err.message, '\x1b[31m'))
     }
 
-    const offExit = window.ternix.terminal.onExit(pane.id, ({ reason }) => {
+    const offExit = window.ternix.terminal.onExit(pane.id, ({ reason, clean }) => {
+      // Ctrl+D / `exit` ends the session on purpose — close the pane instead of
+      // offering to reconnect to something the user just walked away from.
+      if (clean) {
+        const tab = useTabStore.getState().tabs.find((t) => t.panes.some((p) => p.id === pane.id))
+        if (tab) {
+          useTabStore.getState().closePane(tab.id, pane.id)
+          return
+        }
+      }
       if (scheduleReconnect(reason)) return
       term.writeln(`\r\n\x1b[90m[ ${reason ?? 'disconnected'} ]\x1b[0m`)
       term.writeln(`\x1b[90m[ Press Ctrl+R to reconnect ]\x1b[0m`)

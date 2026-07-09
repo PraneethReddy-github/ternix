@@ -1,5 +1,5 @@
 import { handle } from './util'
-import { homedir } from 'node:os'
+import { homedir, userInfo } from 'node:os'
 import { readdirSync, mkdirSync, rmSync, renameSync, lstatSync } from 'node:fs'
 import { join, resolve as resolvePath } from 'node:path'
 import type { SftpEntry } from '@shared/index'
@@ -9,6 +9,16 @@ import { ConnectionManager } from '../services/ConnectionManager'
 function localModePerms(mode: number): string {
   const t = ['---', '--x', '-w-', '-wx', 'r--', 'r-x', 'rw-', 'rwx']
   return t[(mode >> 6) & 7] + t[(mode >> 3) & 7] + t[mode & 7]
+}
+
+/**
+ * Node gives us a uid, not a name, and there is no passwd lookup in stdlib. The current user
+ * is the one we can name, and on Windows every file reports uid 0, so name them all.
+ * ponytail: other uids stay numeric; parse /etc/passwd if that ever matters.
+ */
+function localOwner(uid: number): string {
+  const me = userInfo()
+  return process.platform === 'win32' || uid === me.uid ? me.username : String(uid)
 }
 
 function listLocal(dir: string): SftpEntry[] {
@@ -33,7 +43,7 @@ function listLocal(dir: string): SftpEntry[] {
         mode: st.mode,
         permissions: localModePerms(st.mode),
         modified: st.mtimeMs,
-        owner: String(st.uid ?? ''),
+        owner: localOwner(st.uid),
         group: String(st.gid ?? '')
       })
     } catch {

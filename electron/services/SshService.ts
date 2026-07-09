@@ -132,11 +132,15 @@ class SshServiceImpl {
 
     channel.on('data', (d: Buffer) => ConnectionManager.pushData(tabId, d.toString('utf8')))
     channel.stderr.on('data', (d: Buffer) => ConnectionManager.pushData(tabId, d.toString('utf8')))
+    // A transport error before the channel closes means the link dropped; a bare close
+    // means the remote shell exited (Ctrl+D, `exit`, server hangup).
+    let transportError = false
     channel.on('close', () => {
-      ConnectionManager.pushExit(tabId, 0, 'channel closed')
+      ConnectionManager.pushExit(tabId, 0, transportError ? 'connection lost' : 'session ended', !transportError)
       client.end()
     })
     client.on('error', (err) => {
+      transportError = true
       ConnectionManager.pushStatus(tabId, 'error', err.message)
     })
     client.on('close', () => ConnectionManager.pushStatus(tabId, 'disconnected'))

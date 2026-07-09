@@ -8,12 +8,14 @@ import { PanelHeader } from '@/components/layout/Sidebar'
 import { ProtocolIcon } from './ProtocolIcon'
 import { connectSession } from './SessionCard'
 import { fuzzyFilter } from '@/utils/fuzzy'
+import { visibleInSession } from '@/utils/snippets'
 
 /** Global search across sessions and snippets. */
 export function SearchPanel() {
   const sessions = useSessionStore((s) => s.sessions)
   const [snippets, setSnippets] = useState<Snippet[]>([])
   const [q, setQ] = useState('')
+  const sessionId = useTabStore((s) => s.getActivePane()?.sessionId ?? null)
   const notify = useUiStore((s) => s.notify)
 
   useEffect(() => {
@@ -21,7 +23,11 @@ export function SearchPanel() {
   }, [])
 
   const sessionHits = useMemo(() => (q ? fuzzyFilter(q, sessions, (s) => `${s.name} ${s.host ?? ''} ${s.tags.join(' ')}`).slice(0, 20) : []), [q, sessions])
-  const snippetHits = useMemo(() => (q ? fuzzyFilter(q, snippets, (s) => `${s.name} ${s.command}`).slice(0, 20) : []), [q, snippets])
+  const snippetHits = useMemo(() => {
+    if (!q) return []
+    const visible = snippets.filter((s) => visibleInSession(s, sessionId))
+    return fuzzyFilter(q, visible, (s) => `${s.name} ${s.command}`).slice(0, 20)
+  }, [q, snippets, sessionId])
 
   return (
     <div className="flex flex-col h-full min-h-0">

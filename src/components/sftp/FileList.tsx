@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react'
-import { ArrowUp, RefreshCw, FolderPlus, Eye, EyeOff, Loader2, RotateCcw, WifiOff } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { ArrowUp, RefreshCw, FolderPlus, Eye, EyeOff, Loader2, RotateCcw, WifiOff, ArrowDownUp } from 'lucide-react'
 import type { SftpEntry } from '@shared/index'
 import type { MenuItem } from '@/components/ui/ContextMenu'
 import { useContextMenu } from '@/components/ui/ContextMenu'
+import { sortEntries, type SftpSort } from '@/utils/sftpSort'
 import { FileRow } from './FileRow'
 
 export interface DragPayload {
   side: 'local' | 'remote'
-  entries: SftpEntry[]
+  // Only name and path are ever read, which lets an OS drop supply plain paths.
+  entries: Pick<SftpEntry, 'name' | 'path'>[]
 }
 
 // A "stack of cards" drag image for multi-file drags. Returns an off-screen node
@@ -50,9 +52,14 @@ export function FileList({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchor, setAnchor] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<SftpSort>('default')
   const { open, element } = useContextMenu()
 
   const [pathInput, setPathInput] = useState(pane.path)
+
+  // Display order. Everything below works off `rows`, never pane.entries, so that
+  // shift-range selection and Ctrl+A follow what is actually on screen.
+  const rows = useMemo(() => sortEntries(pane.entries, sortBy), [pane.entries, sortBy])
 
   // Reset selection whenever the folder changes.
   useEffect(() => {
@@ -63,7 +70,7 @@ export function FileList({
 
   // Click select with ctrl/cmd (toggle) and shift (range) modifiers.
   const handleSelect = (entry: SftpEntry, e: React.MouseEvent) => {
-    const paths = pane.entries.map((x) => x.path)
+    const paths = rows.map((x) => x.path)
     if (e.shiftKey && anchor) {
       const a = paths.indexOf(anchor)
       const b = paths.indexOf(entry.path)
@@ -88,7 +95,7 @@ export function FileList({
   // The rows an action operates on: the whole selection if the target is part of
   // it, otherwise just the target (which also becomes the new selection).
   const targetsFor = (entry: SftpEntry): SftpEntry[] => {
-    if (selected.has(entry.path) && selected.size > 1) return pane.entries.filter((x) => selected.has(x.path))
+    if (selected.has(entry.path) && selected.size > 1) return rows.filter((x) => selected.has(x.path))
     return [entry]
   }
 
@@ -113,6 +120,22 @@ export function FileList({
         <button className="text-muted hover:text-text p-1" title="New folder" onClick={onMkdir}><FolderPlus size={13} /></button>
         <button className="text-muted hover:text-text p-1" title="Toggle hidden" onClick={() => pane.setShowHidden(!pane.showHidden)}>
           {pane.showHidden ? <Eye size={13} /> : <EyeOff size={13} />}
+        </button>
+        <button
+          className="text-muted hover:text-text p-1"
+          title="Sort"
+          onClick={(e) =>
+            open(e, [
+              { label: 'Default' + (sortBy === 'default' ? ' ✓' : ''), onClick: () => setSortBy('default') },
+              // Re-picking the active sort unchecks it and falls back to the server's order.
+              ...(['name', 'modified'] as const).map((s) => ({
+                label: (s === 'name' ? 'Name (A–Z)' : 'Date modified') + (sortBy === s ? ' ✓' : ''),
+                onClick: () => setSortBy(sortBy === s ? 'default' : s)
+              }))
+            ])
+          }
+        >
+          <ArrowDownUp size={13} />
         </button>
         {pane.loading && <Loader2 size={13} className="animate-spin text-muted ml-1" />}
         {'retry' in pane && pane.error && (
@@ -140,16 +163,26 @@ export function FileList({
         onKeyDown={(e) => {
           if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
             e.preventDefault()
-            setSelected(new Set(pane.entries.map((x) => x.path)))
+            setSelected(new Set(rows.map((x) => x.path)))
           }
         }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
+          e.preventDefault()
           const raw = e.dataTransfer.getData('tx/file')
           if (raw) {
             const payload = JSON.parse(raw) as DragPayload
             if (payload.side !== side) onDropTransfer(payload, pane.path)
+            return
           }
+          // A drop from outside the app. Only the remote pane can act on it — uploading
+          // is the one thing we can do with an OS path. SftpService.upload recurses into
+          // directories on its own, so a dropped folder needs no special handling here.
+          if (side !== 'remote') return
+          const entries = Array.from(e.dataTransfer.files)
+            .map((f) => ({ name: f.name, path: window.ternix.system.getPathForFile(f) }))
+            .filter((x) => x.path)
+          if (entries.length) onDropTransfer({ side: 'local', entries }, pane.path)
         }}
       >
         {pane.loading && !pane.path ? (
@@ -173,7 +206,7 @@ export function FileList({
         ) : (
           <table className="w-full">
             <tbody>
-              {pane.entries.map((entry) => (
+              {rows.map((entry) => (
                 <FileRow
                   key={entry.path}
                   entry={entry}
@@ -195,7 +228,7 @@ export function FileList({
         )}
       </div>
       <div className="h-6 flex items-center px-2 border-t border-border text-[10px] text-muted shrink-0">
-        {pane.entries.length} items{selected.size > 0 ? ` · ${selected.size} selected` : ''}
+        {rows.length} items{selected.size > 0 ? ` · ${selected.size} selected` : ''}
       </div>
       {element}
     </div>

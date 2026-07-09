@@ -4,15 +4,15 @@
   </h1>
   <h1>Ternix</h1>
   <p><strong>One terminal. Everything.</strong></p>
-  <p>A modern, cross-platform SSH & remote session manager built with Electron, React, and xterm.js.</p>
+  <p>A modern, cross-platform SSH &amp; remote session manager built with Electron, React, and xterm.js.</p>
 
   <p>
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg" />
-    <img alt="Version" src="https://img.shields.io/badge/version-0.1.4-green.svg" />
-    <img alt="Platform" src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg" />
+    <img alt="Version" src="https://img.shields.io/badge/version-1.0.2-green.svg" />
+    <img alt="Platform" src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg" />
     <img alt="Electron" src="https://img.shields.io/badge/Electron-33-47848F?logo=electron" />
     <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react" />
-    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript" />
+    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript" />
   </p>
 </div>
 
@@ -20,171 +20,254 @@
 
 ## 🌟 Overview
 
-**Ternix** is a feature-rich, privacy-first desktop terminal application that handles every protocol you'll ever need — SSH, Telnet, Serial, and local shells — all from a single, beautifully designed interface. Built on Electron + React + xterm.js, it ships as a native app on Linux (AppImage/deb), macOS (dmg), and Windows (NSIS installer).
+**Ternix** is a privacy-first desktop terminal and remote-session manager. It speaks SSH, Telnet, Serial, local shells, RDP, and VNC from a single interface, and bundles the tools you normally reach for separately: an SFTP file manager, an SSH key vault, port forwarding, session recording, a live system monitor, and command snippets.
 
-Unlike cloud-based session managers, Ternix stores **everything locally** in a SQLite database with AES-256-GCM encrypted credentials. Your SSH keys and passwords never leave your machine.
+Everything is stored **locally** in a SQLite database. Credentials are encrypted at rest with AES-256-GCM. Nothing is sent to a cloud service.
+
+It ships as a native app for Linux (AppImage/deb) and Windows (NSIS installer/portable).
 
 ---
 
 ## ✨ Features
 
-### 🔌 Multi-Protocol Terminal Engine
+### 🔌 Protocols
 
-| Protocol | Details |
+| Protocol | What Ternix does |
 |---|---|
-| **SSH** | Full SSH2 client with key-based auth, password auth, SSH agent forwarding, keyboard-interactive, jump-host chains (ProxyJump), banner display, and latency measurement |
-| **Telnet** | RFC 854-compliant Telnet with full IAC option negotiation (NAWS, terminal-type, suppress-GA, echo), auto-login on prompt detection |
-| **Serial / COM** | Native `serialport` integration supporting full serial config: baud rate (300–921600), data bits, stop bits, parity (none/even/odd/mark/space), flow control (RTS/CTS, XON/XOFF) |
-| **Local Shell** | Native PTY shell sessions using `node-pty` with full POSIX shell support |
-| **VNC** | Embedded in-pane VNC viewer (noVNC) over a loopback WebSocket↔TCP bridge — VNC-auth supported, scales to the pane. "Open in native client" fallback (Screen Sharing / vncviewer / Remmina) |
-| **RDP** | Embedded in-pane RDP viewer (Guacamole) via a local `guacd` daemon — supports modern Windows incl. NLA/CredSSP. "Open in native client" fallback (mstsc / xfreerdp / Microsoft Remote Desktop) when guacd is unavailable. Configure the guacd host/port in Settings → Advanced |
+| **SSH** | Password, public-key, SSH-agent, keyboard-interactive (MFA/OTP), and `none` auth. Multi-hop jump-host chains (ProxyJump). Host-key pinning. Per-session keepalives and compression. Server banner display. Round-trip latency probe. Startup commands. Optional agent forwarding (under agent auth). |
+| **Telnet** | Raw TCP with IAC option negotiation — NAWS (window size, re-sent on resize), terminal-type (`xterm-256color`), suppress-go-ahead, and echo. Auto-login on `login:` / `password:` prompt detection. |
+| **Serial / COM** | Native `serialport`. Port enumeration with manufacturer names. Baud 300–921600, 7/8 data bits, 1/1.5/2 stop bits, parity (none/even/odd/mark/space), flow control (RTS/CTS or XON/XOFF). |
+| **Local shell** | Native PTY via `node-pty`. Defaults to `$SHELL` (or `/bin/bash`) on Unix and `$COMSPEC` (or PowerShell) on Windows. Custom shell, args, cwd, and env supported. |
+| **VNC** | Embedded in-pane viewer (noVNC) over a loopback, token-gated WebSocket↔TCP bridge. VNC password auth. Scales and centres to the pane. Falls back to a native client (`vncviewer`, `xtigervncviewer`, Remmina on Linux; TightVNC on Windows). |
+| **RDP** | Embedded in-pane viewer (Apache Guacamole) through a local `guacd` daemon on **Linux**. guacd reachability is probed automatically; when it's unavailable — and always on Windows — Ternix hands off to a native client (`mstsc`, with credentials pre-stashed via `cmdkey`, or `xfreerdp`/`wlfreerdp`). guacd host/port configurable in Settings → Advanced. |
 
-### 🖥️ Terminal Features
+### 🖥️ Terminal
 
-- **xterm.js v5** rendering engine with **WebGL** acceleration
-- Up to **4 split panes** per tab with resizable dividers (horizontal and vertical)
-- **In-terminal search** with next/previous navigation and highlight
-- **Context menu** — Copy, Paste, Select All, Copy as HTML, Find, Clear, Reset
-- Right-click configurable: context menu or instant paste
-- **Trim paste whitespace** and **multiline paste confirmation** settings
-- **Broadcast mode** — type once, send to all selected terminal panes simultaneously
-- Real-time **cols × rows** display in the status bar
-- Per-pane toolbar with quick actions
-- **Compact mode** for a cleaner, minimal UI
-- WebLinks addon — clickable URLs in the terminal output
+- **xterm.js 5.5** with optional **WebGL** acceleration (auto-disabled when ligatures are on, since ligatures require the DOM renderer)
+- Addons: fit, search, web-links (clickable URLs), Unicode 11 width
+- **Find** with match-case and regex toggles, next/previous, and overview-ruler marks
+- **Context menu**: Copy · Paste · Select All · Copy as HTML · Find… · Clear · Reset
+- Right-click configurable: show the context menu, or paste immediately
+- Paste safety: CRLF normalised to LF, optional **multiline paste confirmation**, optional **trailing-whitespace trim**
+- **Copy on select** and **middle-click paste**, both optional
+- **Terminal bell**: off, visual flash, or audio beep
+- Font zoom with `Ctrl` `+` / `-` / `0`
+- **Broadcast mode** — type once in a floating bar, send to every pane of every broadcast-enabled tab
 
-### 📁 Session Management
+### 🪟 Tabs & Split Panes
 
-- Unlimited sessions with **nested group folders** (drag-and-drop between groups)
-- **Fuzzy search** across session name, host, and tags
-- Sort sessions by **A–Z**, **last connected**, or **protocol**
-- Per-session **tab accent colors** for visual distinction
-- **Duplicate** sessions in one click
-- Session metadata: name, protocol, host, port, username, tags, notes, env vars
-- **Startup commands** — run scripts automatically when a shell opens
-- **Last connected** timestamp tracking
-- Full **context menu** on right-click: Connect, Split, Open SFTP, Edit, Duplicate, Tunnels, Connection Log, Copy Host, Delete
+- Up to **6 panes per tab**, tiled as at most **2 rows × 3 columns**. Panes share space equally.
+- Split **right** (`Ctrl+Shift+D`) or **down** (`Ctrl+Shift+E`); a new pane inherits the active pane's session
+- Tabs: drag to reorder, middle-click to close, rename, `Ctrl+1`…`Ctrl+9` to jump
+- Tab context menu: open in new tab, rename, duplicate session, split right/down, close tab / others / to the right
+- **Restore last session** on startup, or open a blank tab, or open the session picker
+- **Auto-reconnect** with configurable retries and delay; `Ctrl+R` to reconnect a dropped pane manually
+- The active pane is outlined when a tab holds more than one
+
+### ⌨️ Command Palette & Keybindings
+
+`Ctrl+P` opens a fuzzy palette over every saved session plus quick actions (new SSH session, new local shell, split, toggle sidebar, open SFTP, key vault, broadcast, settings, import/export).
+
+All 21 shortcuts below are **rebindable** in Settings → Keyboard (click a row, press the combo). Overrides are stored as JSON.
+
+| Action | Default | Action | Default |
+|---|---|---|---|
+| New tab (local shell) | `Ctrl+T` | Toggle SFTP panel | `Ctrl+Shift+F` |
+| New SSH session | `Ctrl+Shift+N` | Toggle broadcast | `Ctrl+Shift+B` |
+| Close tab | `Ctrl+W` | Increase font size | `Ctrl+=` |
+| Next / previous tab | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Decrease font size | `Ctrl+-` |
+| Split right | `Ctrl+Shift+D` | Reset font size | `Ctrl+0` |
+| Split down | `Ctrl+Shift+E` | Clear terminal | `Ctrl+L` |
+| Toggle sidebar | `Ctrl+B` | Disconnect | `Ctrl+Shift+Q` |
+| Command palette | `Ctrl+P` | Toggle recording | `Ctrl+Shift+R` |
+| Find in terminal | `Ctrl+F` | Open key vault | `Ctrl+Shift+K` |
+| Open settings | `Ctrl+,` | Full screen | `F11` |
+
+`Ctrl+1`…`Ctrl+9` (jump to tab) and `Ctrl+R` (reconnect) are fixed.
+
+### 📁 Sessions
+
+- Unlimited sessions organised into **nested group folders**; drag a session onto a group to move it
+- **Fuzzy search** across name, host, and tags
+- Sort by **A–Z**, **last connected**, or **protocol**
+- **Duplicate** a session in one click
+- Metadata: name, protocol, host, port, username, tags, notes, environment variables, startup commands
+- Right-click a session: Connect · Edit · Duplicate · Tunnels… · Connection log · Copy host · Delete
+- **Last connected** timestamps
 
 ### 🔐 SSH Key Vault
 
-- Encrypted private key storage using **AES-256-GCM** with PBKDF2-SHA512 key derivation
-- Generate **ed25519**, **RSA 4096**, or **ECDSA 521** keys directly within the app
-- Import existing PEM / OpenSSH format private keys by file browser or paste
-- **Auto-scan `~/.ssh`** to batch-import all local private keys
-- Copy public key to clipboard with one click
-- **`ssh-copy-id` equivalent** — deploy a public key to any saved SSH session directly
-- Export private key back to disk (with master password confirmation)
-- Key fingerprint display (SHA-256) with usage tracking ("used by N sessions")
-- Optional **passphrase** protection on generated and imported keys
+- Private keys encrypted at rest with **AES-256-GCM**
+- **Generate** ed25519, RSA 4096, or ECDSA 521 keys in-app, with an optional passphrase (`aes256-cbc`)
+- **Import** PEM / OpenSSH private keys by file picker or paste
+- **Scan `~/.ssh`** to batch-import local keys (passphrase-protected keys are skipped — they can't be fingerprinted unattended)
+- **Deploy a public key** to any saved SSH session — the `ssh-copy-id` equivalent
+- Copy public key, export private key, delete
+- `SHA256:` fingerprints and a "used by *N* sessions" count
 
-### 🔒 Security & Vault
+### 🛡️ Host Key Verification
 
-- **Dual-mode vault**:
-  - **Keychain mode** (default): random 256-bit key stored in OS keychain (`keytar`) or a `0600` key file fallback — always unlocked
-  - **Master password mode**: key derived via PBKDF2 (100,000 iterations, SHA-512) — vault locks after idle timeout or system sleep
-- All credentials encrypted at rest: SSH passwords, key passphrases, VNC passwords
-- **Auto-lock** on system suspend/sleep (configurable)
-- **Idle timeout** lock (configurable 1–1440 minutes)
-- **Clear clipboard** after N seconds
-- CSP (Content Security Policy) headers enforced in the renderer process
-- Strict `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`
+Host keys are pinned in a `known_hosts` table (SQLite, not the OpenSSH file). Three modes via `ssh.hostKeyStrictness`:
+
+- **prompt** (default) — unknown keys raise a dialog showing the fingerprint
+- **auto-accept** — pin silently on first sight
+- **strict** — refuse to connect to an unknown host
+
+A **changed** host key always raises a warning dialog showing both the stored and the offered fingerprint, in every mode.
+
+### 🔒 Vault & Security
+
+- **Keychain mode** (default) — a random 256-bit key is generated on first run and kept in your OS credential store (Windows Credential Manager, Linux Secret Service). The vault is always unlocked.
+- **Master-password mode** — the key is derived with **PBKDF2 (100,000 iterations, SHA-512)** and never written anywhere. Setting, changing, or removing the master password re-encrypts every stored secret in a single transaction.
+- Encrypted at rest: SSH passwords, key passphrases, VNC passwords, and private keys. Blobs are `[IV | GCM tag | ciphertext]` with a fresh random IV per encryption.
+- **Auto-lock** on idle (0–1440 min) and on system sleep — *master-password mode only*
+- **Clipboard auto-clear** after 0–600 s, and only if the clipboard still holds what Ternix copied
+
+> See [Security Notes](#-security-notes) for exactly where the key lives in each mode. It matters.
 
 ### 🌐 SFTP File Manager
 
-- Dual-pane file browser: **local ↔ remote** simultaneously
-- Full remote filesystem operations: browse, upload, download, mkdir, rename, delete
-- **Drag-and-drop** transfers between local and remote panes
-- Right-click context menu on files and directories
-- **`chmod` permissions editor** — visual Unix permission bits editor
-- **Transfer progress** with real-time speed (bytes/sec) and ETA
-- **Pause, Resume, Cancel** individual transfers
-- Resizable SFTP panel with a drag handle
+- Stacked **local** and **remote** panes, each with its own scroller; the whole panel is resizable by a drag handle
+- Browse, upload, download, mkdir, rename, delete (recursive on remote directories), `chmod`
+- Columns for permissions and owner/group, parsed from the server's long listing
+- **Sort** by default (server order), name, or date modified — re-picking the active sort returns to server order
+- Toggle hidden files, editable path bar, up/refresh
+- **Multi-select** with `Ctrl`/`Cmd`-click, `Shift`-click ranges, and `Ctrl+A`
+- **Drag and drop** between panes — *and* from your desktop / Explorer / Finder straight onto the remote pane to upload
+- Dropping a **folder** uploads it recursively
+- Double-click a remote file to download and open it locally
+- Visual **`chmod` editor** — a 3×3 permission grid tied to a live octal field
+- Name-collision policy: prompt, overwrite, skip, or auto-rename
 
-### 🚇 SSH Port Forwarding (Tunnels)
+### 📊 Transfers
 
-- Per-session tunnel configurations saved to the database
-- Three tunnel types:
-  - **Local (-L)**: forward a local port to a remote host
-  - **Remote (-R)**: expose a local port on the SSH server
-  - **Dynamic (-D)**: SOCKS5 proxy for tunneling arbitrary traffic
-- **Auto-start** option — tunnel activates automatically when the session connects
-- Live bytes-transferred counter
-- Start/stop tunnels without disconnecting the session
+- Live **progress, speed, and ETA** per file
+- **Pause**, **resume**, and **cancel any individual file** — cancelling one file in a 30-file folder transfer lets the other 29 finish
+- Cancelling removes the partially-written file (local for downloads, remote for uploads) so a half-file is never mistaken for a real one
+- Configurable **parallelism** (`transfer.maxConcurrent`, default 3), applied across an entire folder tree rather than per-directory
+- Optional **timestamp preservation**
+- Transfers move in ~254 KiB chunks — the maximum a single SFTP request allows
+
+### 🚇 SSH Port Forwarding
+
+- **Local (`-L`)**, **Remote (`-R`)**, and **Dynamic (`-D`, SOCKS5)** tunnels, saved per session
+- **Auto-start** on session connect
+- Live bytes-transferred counter, status dot, copy address, stop, restart
 
 ### 📝 Command Snippets
 
-- Create and manage reusable command snippets with name, command, description, and tags
-- **Variable interpolation** — `${VAR}` placeholders prompt for values at run time
-- Send any snippet to the active terminal with one click
-- Fuzzy search across name, description, and tags
-- Export/import snippets as JSON
+- Reusable commands with name, description, and tags
+- **`${VAR}` interpolation** — each unique variable prompts once at run time
+- Multi-line snippets run **line by line**, each gated on the shell prompt returning, so long commands don't eat the next line as type-ahead
+- **Global** snippets appear everywhere; unchecking "Global" scopes a snippet to the session that owns it
+- Fuzzy search; JSON import/export
 
-### 📼 Session Recordings
+### 📼 Session Recording
 
-- Record terminal output in **asciinema v2 (`.cast`)** format
-- Built-in **recording player** with timeline scrubbing, play/pause, and restart
-- Configurable storage cap — auto-prune oldest recordings when limit is exceeded
-- Recordings linked to sessions for organized history
+- Records terminal output as **asciinema v2 (`.cast`)**
+- Built-in player: play/pause, restart, and a **scrubbable timeline** (idle gaps compressed to 2 s)
+- **Auto-record** every session, optionally
+- Storage cap that prunes the oldest recordings; export any `.cast`
 
-### 📋 Connection Logs
+### 📈 System Monitor
 
-- Per-session connection log: timestamps, connection/disconnection events, errors
-- View the full log from the session context menu
+A live dashboard for the machine you're connected to — **local or remote over SSH** — polled every 3 seconds:
+
+- CPU % with a heat-coloured sparkline, load averages, process count, and top process
+- Memory and swap
+- Per-mount disk usage
+- Network RX/TX sparklines (bytes/sec)
+- Uptime and temperature sensors
+
+Remote stats are gathered by a small `/proc` probe over the SSH connection. While a session is still handshaking the panel says so rather than quietly showing your **local** machine's numbers.
+
+### 📋 Connection Log & Global Search
+
+- Every connect/disconnect is logged with host, timestamp, duration, and disconnect reason (last 500)
+- **Global Search** view queries sessions and snippets together
 
 ### 🔄 Import / Export
 
-Import from:
-- **Ternix JSON** backup (full fidelity, optionally includes private keys)
-- **OpenSSH config** (`~/.ssh/config`)
-- **PuTTY** `.reg` export
-- **WinSCP** `.ini`
-- **MobaXterm** `.mxtsessions`
-- **Tabby** `config.yaml`
-- **CSV** (generic, with header row)
+**Import** from 7 formats — Ternix JSON backup, OpenSSH `config`, PuTTY `.reg`, WinSCP `.ini`, MobaXterm `.mxtsessions`, Tabby `config.yaml`, and generic CSV.
 
-Export to:
-- **Ternix JSON** backup (optionally includes encrypted private keys)
-- **CSV**
-- **OpenSSH config**
-- **MobaXterm** `.mxtsessions`
-- **Tabby** `config.yaml`
+**Export** to 5 — Ternix JSON, CSV, OpenSSH `config`, MobaXterm, Tabby. *(PuTTY and WinSCP are import-only.)*
 
-**Smart key auto-linking** — when importing from third-party formats, Ternix automatically resolves `IdentityFile` / key paths to matching keys already in the vault.
+**Smart key auto-linking** — `IdentityFile` and other key paths are resolved against the vault by **fingerprint first, then filename**. Keys found on disk are imported automatically; keys that can't be located are recorded in the session's notes so nothing silently breaks. Duplicate sessions (same name + protocol + host + user) are skipped.
+
+Exporting a backup *with private keys* requires the master password, when one is set.
 
 ### 🎨 Themes & Appearance
 
-**13 built-in themes:**
-- Dark Default
-- Light Default
-- Dracula
-- One Dark Pro
-- Tokyo Night
-- Nord
-- Monokai
-- Gruvbox Dark
-- Catppuccin Mocha
-- Catppuccin Latte
-- Solarized Dark
-- Solarized Light
-- (and more)
+**12 built-in themes:** Default Dark · Default Light · Dracula · Nord · Solarized Dark · Solarized Light · Tokyo Night · Gruvbox Dark · Monokai · One Dark Pro · Catppuccin Mocha · Catppuccin Latte
 
-**Full customization:**
-- **Custom theme editor** — edit any built-in theme or create new ones from scratch
-- Font family, font size, ligatures, line height, letter spacing
-- Cursor style (block, underline, bar) with optional blinking
-- Window transparency
-- Compact mode
-- Custom CSS injection
-- Clock in the status bar
-- Per-session tab accent colors
+- **Theme builder** — edit background, foreground, cursor, selection, UI accent/surface/border, and all **16 ANSI colours**, with a live preview. Import/export themes as JSON.
+- Font family, size, ligatures, line height, letter spacing
+- Cursor style (block/underline/bar) with optional blink
+- Custom CSS injection, optional status-bar clock, compact mode
 
-### ⌨️ Keyboard & Settings
+### ⚙️ Settings
 
-- Full **custom keybinding** configuration
-- Configurable startup behavior: blank tab or last session
-- SSH: connect timeout, keepalive interval/count, host-key strictness (`auto-accept`, `prompt`, `strict`), SSH agent socket
-- Terminal: encoding (UTF-8, ISO-8859-1, Windows-1252, GBK, Shift_JIS), scroll-back lines, right-click behavior
-- **Auto-updater** integration via `electron-updater`
+<details>
+<summary><strong>Every setting key and its default</strong></summary>
+
+| Section | Key | Default |
+|---|---|---|
+| General | `general.defaultShell` | *(empty)* |
+| General | `general.startupBehavior` | `blank` (blank / reopen / picker) |
+| General | `general.newTabProtocol` | `local` |
+| General | `general.confirmCloseActive` | `true` |
+| General | `general.autoReconnect` | `false` |
+| General | `general.autoReconnectRetries` | `3` |
+| General | `general.autoReconnectDelay` | `3` |
+| Terminal | `terminal.scrollback` | `5000` |
+| Terminal | `terminal.bell` | `none` (none / visual / audio) |
+| Terminal | `terminal.wordSeparators` | `` ()[]{}'"` `` |
+| Terminal | `terminal.copyOnSelect` | `false` |
+| Terminal | `terminal.pasteOnMiddleClick` | `true` |
+| Terminal | `terminal.pasteConfirmMultiline` | `true` |
+| Terminal | `terminal.trimPasteWhitespace` | `false` |
+| Terminal | `terminal.rightClick` | `menu` (menu / paste) |
+| Appearance | `appearance.theme` | `dark-default` |
+| Appearance | `appearance.fontFamily` | JetBrains Mono, Fira Code, … |
+| Appearance | `appearance.fontSize` | `14` |
+| Appearance | `appearance.ligatures` | `false` |
+| Appearance | `appearance.lineHeight` | `1.2` |
+| Appearance | `appearance.letterSpacing` | `0` |
+| Appearance | `appearance.cursorStyle` | `block` |
+| Appearance | `appearance.cursorBlink` | `true` |
+| Appearance | `appearance.compactMode` | `false` |
+| Appearance | `appearance.showClock` | `false` |
+| Appearance | `appearance.customCss` | *(empty)* |
+| SSH | `ssh.defaultPort` | `22` |
+| SSH | `ssh.defaultUsername` | *(empty)* |
+| SSH | `ssh.agentSock` | *(empty)* |
+| SSH | `ssh.hostKeyStrictness` | `prompt` (strict / prompt / auto-accept) |
+| SSH | `ssh.connectTimeout` | `20000` ms |
+| SSH | `ssh.showBanner` | `true` |
+| Security | `security.vaultLockTimeout` | `0` min (0 = never) |
+| Security | `security.lockOnSleep` | `false` |
+| Security | `security.clearClipboard` | `0` s (0 = never) |
+| Transfers | `transfer.downloadDir` | *(empty → local pane's dir)* |
+| Transfers | `transfer.conflict` | `prompt` (prompt / overwrite / skip / rename) |
+| Transfers | `transfer.maxConcurrent` | `3` |
+| Transfers | `transfer.preserveTimestamps` | `true` |
+| Recording | `recording.autoRecord` | `false` |
+| Recording | `recording.maxStorageMb` | `0` (0 = unlimited) |
+| Updates | `updates.autoCheck` | `true` |
+| Updates | `updates.channel` | `stable` |
+| Advanced | `rdp.guacdHost` | `127.0.0.1` |
+| Advanced | `rdp.guacdPort` | `4822` |
+| Advanced | `advanced.hardwareAcceleration` | `true` |
+| Advanced | `advanced.rendererType` | `webgl` (webgl / canvas) |
+| Advanced | `advanced.debugLogLevel` | `info` |
+
+</details>
+
+### 🔃 Auto-Update
+
+Powered by `electron-updater` against GitHub Releases. Ternix checks on startup (when enabled) and surfaces a toast with a **View** button that jumps straight to Settings → Updates, where you can download with a live progress bar and restart to install.
+
+The **Beta** channel opts you into GitHub pre-releases; **Stable** offers only full releases. The choice takes effect on the next check — no restart needed. Updates only work in packaged builds.
 
 ---
 
@@ -192,87 +275,78 @@ Export to:
 
 ```
 ternix/
-├── electron/               # Main process (Node.js / Electron)
-│   ├── main.ts             # App entry, window creation, CSP, power monitor
-│   ├── preload.ts          # Context-isolated IPC bridge (TernixApi)
+├── electron/                    # Main process (Node.js / Electron)
+│   ├── main.ts                  # Window, CSP, power monitor, navigation lockdown
+│   ├── preload.ts               # Context-isolated IPC bridge (TernixApi)
 │   ├── db/
-│   │   ├── schema.ts       # SQLite schema (better-sqlite3)
-│   │   └── repo.ts         # Repository layer (sessions, groups, keys, etc.)
-│   ├── ipc/                # IPC handler registrations
+│   │   ├── schema.ts            # SQLite schema (WAL, foreign keys on)
+│   │   ├── migrations/          # user_version-based forward migrations
+│   │   ├── repo.ts              # Repository layer
+│   │   └── snippetScope.ts      # Global vs session-scoped snippet invariant
+│   ├── ipc/                     # 20 IPC namespaces, {ok,data}/{ok,error} envelope
 │   └── services/
-│       ├── SshService.ts       # Full SSH2 client (chains, host-key pinning, KBI)
-│       ├── SftpService.ts      # SFTP file operations + streaming transfers
-│       ├── TelnetService.ts    # RFC 854 Telnet with IAC negotiation
-│       ├── SerialService.ts    # Native serialport integration
-│       ├── PtyService.ts       # Local PTY (node-pty)
-│       ├── TunnelService.ts    # SSH port-forwarding (local/remote/SOCKS5)
-│       ├── RecordingService.ts # asciinema v2 recording + storage cap
-│       ├── KeyService.ts       # SSH key vault (generate, import, deploy)
-│       ├── CryptoService.ts    # AES-256-GCM vault + PBKDF2 master password
-│       ├── ImportExportService.ts # Parse/generate 7 session formats
-│       ├── ConnectionManager.ts # Active connection registry
-│       └── DatabaseService.ts  # SQLite database lifecycle
+│       ├── SshService.ts        # SSH2 client: jump chains, host-key pinning, MFA
+│       ├── SftpService.ts       # SFTP ops + chunked transfers, pause/cancel
+│       ├── TelnetService.ts     # Telnet with IAC option negotiation
+│       ├── SerialService.ts     # serialport (lazy-loaded)
+│       ├── PtyService.ts        # Local PTY (node-pty)
+│       ├── RdpGatewayService.ts # guacd gateway (guacamole-lite)
+│       ├── VncBridgeService.ts  # Token-gated loopback WebSocket↔TCP bridge
+│       ├── NativeClientService.ts # mstsc / xfreerdp / vncviewer fallbacks
+│       ├── TunnelService.ts     # -L / -R / -D (SOCKS5)
+│       ├── RecordingService.ts  # asciinema v2 + storage cap
+│       ├── KeyService.ts        # Key vault: generate, import, deploy
+│       ├── CryptoService.ts     # AES-256-GCM vault + PBKDF2
+│       ├── ImportExportService.ts # 7 import / 5 export formats
+│       ├── ConnectionManager.ts # Active connection registry, OSC 7 cwd tracking
+│       └── DatabaseService.ts   # SQLite lifecycle
 │
-├── src/                    # Renderer process (React + TypeScript)
-│   ├── App.tsx             # Root component — initializes stores
+├── src/                         # Renderer process (React + TypeScript)
 │   ├── components/
-│   │   ├── layout/         # RootLayout, Sidebar, TitleBar, StatusBar
-│   │   ├── terminal/       # TerminalArea, TerminalPane, SplitLayout, BroadcastBar, TerminalSearch, TerminalToolbar
-│   │   ├── sidebar/        # SessionTree, GroupFolder, SessionCard, SnippetsPanel, RecordingsPanel, TunnelsPanel, SearchPanel, SftpSidebar, TransferQueue
-│   │   ├── sftp/           # SftpPanel, FileList, FileRow, PermissionsEditor, TransferProgressBar
-│   │   ├── settings/       # SettingsPanel + 9 settings sections
-│   │   ├── dialogs/        # NewSessionDialog, KeyVaultDialog, TunnelDialog, ExportImportDialog, RecordingPlayer, ThemeEditorDialog, SnippetDialog, ConfirmDialog, PromptDialog, ConnectionLogDialog
-│   │   └── ui/             # Modal, ContextMenu, and reusable primitives
-│   ├── store/              # Zustand state management
-│   │   ├── useTabStore.ts      # Terminal tabs, panes, split state
-│   │   ├── useSessionStore.ts  # Sessions + groups CRUD
-│   │   ├── useThemeStore.ts    # Active theme, custom themes
-│   │   ├── useSettingsStore.ts # App-wide settings key-value store
-│   │   ├── useTransferStore.ts # SFTP transfer progress subscriptions
-│   │   └── useUiStore.ts       # Dialog state, notifications, view switching
-│   ├── hooks/              # useTerminal, useSftp, terminalRegistry
-│   ├── themes/             # 13 built-in xterm.js themes
-│   └── utils/              # fuzzy filter, path utils, formatDuration, cn
+│   │   ├── layout/              # RootLayout, ActivityBar, Sidebar, TabBar, StatusBar,
+│   │   │                        #   TitleBar, CommandPalette, Toast, StatsPoller
+│   │   ├── terminal/            # TerminalArea, TerminalPane, SplitLayout, BroadcastBar,
+│   │   │                        #   TerminalSearch, TerminalToolbar, RemoteDesktopPane
+│   │   ├── sidebar/             # SessionTree, GroupFolder, SessionCard, SnippetsPanel,
+│   │   │                        #   TunnelsPanel, RecordingsPanel, StatsPanel,
+│   │   │                        #   SearchPanel, SftpSidebar, TransferQueue
+│   │   ├── sftp/                # SftpPanel, FileList, FileRow, PermissionsEditor
+│   │   ├── settings/            # SettingsPanel + 9 sections
+│   │   ├── dialogs/             # NewSession, KeyVault, Tunnel, ExportImport,
+│   │   │                        #   RecordingPlayer, ThemeEditor, Snippet, ConnectionLog
+│   │   └── ui/                  # Modal, ContextMenu
+│   ├── store/                   # Zustand: tabs, sessions, settings, theme, sftp,
+│   │                            #   transfers, stats, ui
+│   ├── hooks/                   # useTerminal, useSftp, useKeyboard, useTheme, useSsh
+│   ├── themes/                  # 12 built-in themes
+│   └── utils/                   # fuzzy, path, sftpSort, statsTarget, snippets, format*
 │
-├── electron-builder.json   # Build targets: AppImage+deb (Linux), dmg+zip (macOS), NSIS+portable (Windows)
-├── electron.vite.config.ts # electron-vite build config
-├── package.json
-└── tsconfig.json
+├── electron-builder.json        # AppImage + deb (Linux), NSIS + portable (Windows)
+└── electron.vite.config.ts
 ```
 
-### Key Technical Decisions
+### Key technical decisions
 
-- **`better-sqlite3`** for synchronous SQLite access in the main process — zero race conditions for credential storage
-- **`ssh2`** library for full SSH2 protocol: multi-hop jump hosts, SFTP subsystem, exec channels, and latency ping
-- **`node-pty`** for local shell PTY with proper POSIX signals
-- **`serialport`** loaded lazily — app boots even if native build failed
-- **`keytar`** for OS keychain integration (libsecret on Linux, Keychain on macOS, Credential Manager on Windows)
-- **AES-256-GCM** encryption with random IVs and auth tags — all credential blobs stored as `[IV | TAG | CIPHERTEXT]`
-- **Zustand** for lightweight, hook-friendly global state without Redux boilerplate
-- **Vite + electron-vite** for fast HMR in development
-- **Context isolation + no `nodeIntegration`** — renderer is sandboxed, all native access goes through the typed `TernixApi` bridge
+- **`better-sqlite3`**, synchronous, in the main process — no races on credential storage. WAL journal, foreign keys on, `user_version` migrations applied in a transaction.
+- **`ssh2`** for the full protocol: multi-hop jump hosts, the SFTP subsystem, exec channels, and the latency probe.
+- **SFTP transfers use ~254 KiB chunks** (`OPENSSH_MAX_PKT_LEN − PKT_RW_OVERHEAD`). ssh2's SFTP streams issue one request and wait for the reply, so on a high-latency link the chunk size *is* the throughput.
+- **`node-pty`** for local shells with real signal handling; **`serialport`** loaded lazily so the app still boots if its native build failed.
+- **AES-256-GCM** with a random IV per encryption; blobs stored as `[IV | tag | ciphertext]`.
+- **Zustand** for state — the transfer queue subscribes per row, so a progress tick re-renders one row rather than the whole list.
+- **The renderer never touches Node.** Everything goes through one typed `contextBridge` surface; each IPC call returns an `{ok, data}` / `{ok, error}` envelope and pings the vault idle timer.
+- **Nothing blocks the main process.** System-stats collection is async with TTL caches, because Electron routes your input events through that process.
 
 ---
 
 ## 🚀 Installation
 
 ### Windows
-- **Winget (Official):**
-  ```bash
-  winget install ternix
-  ```
-- **Scoop (Custom Bucket):**
-  ```bash
-  scoop bucket add ternix https://github.com/PraneethReddy-github/ternix
-  scoop install ternix
-  ```
-- **Direct Download:** Get the `.exe` installer or portable version from the [Releases page](https://github.com/PraneethReddy-github/ternix/releases).
+Download the `.exe` installer or the portable build from [Releases](https://github.com/PraneethReddy-github/ternix/releases).
 
 ### Linux
-- Download the `.AppImage` or `.deb` package from the [Releases page](https://github.com/PraneethReddy-github/ternix/releases).
+Download the `.AppImage` or `.deb` from [Releases](https://github.com/PraneethReddy-github/ternix/releases).
 
-### macOS
-- Download the `.dmg` or `.zip` from the [Releases page](https://github.com/PraneethReddy-github/ternix/releases).
+For **embedded RDP**, install `guacd` (the `.deb` declares it as a dependency). Without it, RDP falls back to a native client.
 
 ---
 
@@ -280,11 +354,12 @@ ternix/
 
 ### Prerequisites
 
-- **Node.js** 20+
-- **npm** 10+
-- Linux: `libsecret-1-dev` (for keytar / OS keychain)
+- **Node.js 20+** (CI builds on 22)
+- Native modules compile via node-gyp, so you need a toolchain:
+  - **Linux:** `libsecret-1-dev` (keytar), `libudev-dev` (serialport); `rpm` and `libarchive-tools` to package
+  - **Windows:** Python with `setuptools` (the distutils shim node-gyp needs on Python 3.12+)
 
-### Install & Run
+### Install & run
 
 ```bash
 git clone https://github.com/PraneethReddy-github/ternix.git
@@ -293,80 +368,137 @@ npm install
 npm run dev
 ```
 
-### Rebuild Native Modules
+### Rebuild native modules
 
-If you see native module errors (`node-pty`, `better-sqlite3`, `serialport`, `keytar`):
+If you hit native module errors (`node-pty`, `better-sqlite3`, `serialport`, `keytar`):
 
 ```bash
 npm run rebuild
 ```
 
-### Build for Distribution
+### Build for distribution
 
 ```bash
-# Linux (AppImage + .deb)
-npm run build:linux
-
-# macOS (.dmg + .zip)
-npm run build:mac
-
-# Windows (NSIS installer + portable .exe)
-npm run build:win
+npm run build:linux   # AppImage + .deb   → dist-electron/linux
+npm run build:win     # NSIS + portable   → dist-electron/win
 ```
-
-Outputs land in `dist-electron/linux`, `dist-electron/mac`, or `dist-electron/win` respectively.
 
 ---
 
-## 📦 Dependencies
+## 🧪 Development
 
-| Package | Purpose |
-|---|---|
-| `@xterm/xterm` | Terminal emulator engine |
-| `@xterm/addon-fit` | Auto-fit terminal to container |
-| `@xterm/addon-search` | In-terminal search |
-| `@xterm/addon-web-links` | Clickable URLs |
-| `@xterm/addon-webgl` | GPU-accelerated rendering |
-| `@xterm/addon-unicode11` | Unicode 11 character width |
-| `better-sqlite3` | Synchronous SQLite (session DB) |
-| `ssh2` | SSH2 protocol client |
-| `node-pty` | Pseudo-terminal for local shells |
-| `serialport` | Serial port communication |
-| `keytar` | OS keychain integration |
-| `js-yaml` | YAML parsing for Tabby import/export |
-| `lucide-react` | Icon library |
-| `react` + `react-dom` | UI framework |
-| `zustand` | State management |
-| `electron-updater` | Auto-update support |
+```bash
+npm run typecheck     # tsc across renderer + main
+npm run lint          # eslint over .ts / .tsx
+```
+
+Ternix has no test framework. Instead, non-trivial pure logic keeps a **runnable self-check** beside it — plain `assert`, no fixtures. Run them with Node's type stripping:
+
+```bash
+node --experimental-strip-types electron/db/snippetScope.check.ts
+node --experimental-strip-types electron/services/sftpOwner.check.ts
+node --experimental-strip-types electron/services/transferOutcome.check.ts
+node --experimental-strip-types electron/services/vaultKeyPlan.check.ts
+node --experimental-strip-types src/utils/sftpSort.check.ts
+node --experimental-strip-types src/utils/statsTarget.check.ts
+```
 
 ---
 
 ## 🔒 Security Notes
 
-- All credentials (SSH passwords, key passphrases, VNC passwords) are encrypted with **AES-256-GCM** before being stored in SQLite
-- In keychain mode, the encryption key lives in the OS keychain — nothing sensitive is stored in plaintext on disk
-- In master-password mode, the key is derived via **PBKDF2** (100,000 iterations, SHA-512) and never persisted; the vault auto-locks after idle or sleep
-- The renderer process runs in a **sandboxed context** — no direct Node.js or Electron API access; everything is mediated through the typed IPC bridge
-- Navigation and external window opens are blocked at the `webContents` level
-- CSP headers restrict script sources in production builds
+Ternix keeps every credential on your machine. Here is precisely how.
+
+### What is encrypted
+
+SSH passwords, key passphrases, VNC passwords, and stored private keys are encrypted with **AES-256-GCM**. Each blob is laid out as `[12-byte IV | 16-byte auth tag | ciphertext]` with a fresh random IV per encryption, so identical secrets never produce identical ciphertext, and any tampering fails the GCM tag check on decrypt.
+
+Hosts, usernames, ports, notes, tags, and snippet commands are **not** encrypted — they are ordinary columns in the SQLite database.
+
+### Where the vault key lives
+
+Everything above is encrypted with one 256-bit **vault key**. There are two modes.
+
+**Keychain mode (default).** The key is generated on first run and stored in your operating system's credential store:
+
+| Platform | Backing store |
+|---|---|
+| Windows | Credential Manager |
+| Linux | Secret Service (libsecret / GNOME Keyring / KWallet) |
+
+Ternix writes the key, then **reads it back and compares** before trusting the store. On every launch the key is read from the keychain — it is not kept on disk.
+
+If the machine has no credential store at all (a headless Linux box without libsecret, or a failed `keytar` build), Ternix falls back to a `0600` key file at `<userData>/.vaultkey`. That fallback is the only situation in which the key touches the filesystem, and in that case the file protects the vault exactly as well as your user account does.
+
+**Master-password mode.** The key is derived from your password with **PBKDF2 (100,000 iterations, SHA-512)** against a stored random salt, and is never written anywhere — not the keychain, not the disk. It exists only in memory while the vault is unlocked. Switching modes re-encrypts every stored secret in a single database transaction, and old keys are zeroed in memory afterwards.
+
+Your password itself is never stored. It is verified by decrypting a known verifier string: the wrong password fails the GCM auth tag.
+
+### Locking
+
+Master-password mode locks the vault on an idle timeout and on system sleep, zeroing the key. **Keychain mode is always unlocked** — the key is available whenever the app runs, so the idle and sleep settings do nothing there. Choose master-password mode if you want a vault that actually locks.
+
+### Other notes
+
+- Exporting a private key prompts for the master password **only when one is set**.
+- **Host keys** are pinned on first use; a changed key always raises a warning showing both the stored and the offered fingerprint.
+- **Embedded RDP does not validate server certificates** (`ignore-cert`). Treat in-pane RDP as protected by the network path, not by TLS identity.
+- The renderer never touches Node: `contextIsolation` is on, `nodeIntegration` is off, `webviewTag` is off, in-app navigation is blocked, `window.open` is denied, and a Content-Security-Policy is injected on every response.
+- Clipboard entries copied by Ternix can auto-clear after a timeout, and only if the clipboard still holds what Ternix put there.
+
+---
+
+## ⚠️ Known Limitations
+
+Documented so you don't discover them the hard way:
+
+- **Split panes share space equally**; there are no draggable dividers between them.
+- **Compact mode** only hides the per-pane toolbar.
+- **Per-session terminal encoding** is stored but not applied — SSH is UTF-8, Telnet and Serial are byte-transparent.
+- **X11 forwarding**, `server_alive_interval`, and RDP colour-depth/fullscreen are exposed in the session editor but not yet wired to the connection.
+- **Agent forwarding** only takes effect when the session's auth type is *agent*.
+- Session, group, and tab **accent colours** exist in the data model but no UI sets them yet.
+- Accepting a **changed host key** does not overwrite the stored pin, so you'll be asked again next connect.
+- **Embedded RDP is Linux only**; Windows always uses `mstsc`.
+- `~/.ssh` scanning **skips passphrase-protected keys** (they can't be fingerprinted without the passphrase).
+- **macOS is not supported.** It has never been tested, nothing is built or released for it, and no macOS artifacts exist.
+
+---
+
+## 📦 Core Dependencies
+
+| Package | Purpose |
+|---|---|
+| `@xterm/xterm` + addons (fit, search, web-links, webgl, unicode11) | Terminal emulator |
+| `ssh2` | SSH2 protocol client + SFTP |
+| `node-pty` | Local shell PTY |
+| `serialport` | Serial / COM |
+| `better-sqlite3` | Synchronous SQLite |
+| `keytar` | OS keychain (optional) |
+| `guacamole-lite` + `guacamole-common-js` | Embedded RDP via guacd |
+| `@novnc/novnc` + `ws` | Embedded VNC over a loopback bridge |
+| `js-yaml` | Tabby YAML import/export |
+| `react` + `react-dom` + `zustand` | UI and state |
+| `lucide-react` | Icons |
+| `electron-updater` *(optional)* | Auto-update against GitHub Releases |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please open an issue first to discuss what you'd like to change.
+Contributions are welcome — please open an issue first to discuss substantial changes.
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create your branch (`git checkout -b feature/amazing-feature`)
+3. Run `npm run typecheck` and the relevant `*.check.ts` self-checks
+4. Commit (`git commit -m 'feat: add amazing feature'`)
 5. Open a Pull Request
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).
 
 ---
 

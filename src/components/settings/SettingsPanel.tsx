@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Settings, TerminalSquare, Palette, Keyboard, Server, Shield, ArrowLeftRight, RefreshCw, Wrench, X } from 'lucide-react'
 import { useUiStore } from '@/store/useUiStore'
 import { GeneralSettings } from './GeneralSettings'
@@ -25,9 +24,11 @@ const SECTIONS = [
 ] as const
 
 export function SettingsPanel() {
-  const [section, setSection] = useState<(typeof SECTIONS)[number]['id']>('general')
+  const section = useUiStore((s) => s.settingsSection)
+  const setSection = useUiStore((s) => s.openSettings)
   const setView = useUiStore((s) => s.setView)
-  const Active = SECTIONS.find((s) => s.id === section)!.Comp
+  // Fall back rather than crash if SECTIONS and SettingsSection ever drift apart.
+  const Active = (SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]).Comp
 
   return (
     <div className="flex-1 flex min-h-0 bg-bg">

@@ -36,7 +36,7 @@ class PtyServiceImpl {
     })
 
     proc.onData((data) => ConnectionManager.pushData(tabId, data))
-    proc.onExit(({ exitCode }) => ConnectionManager.pushExit(tabId, exitCode, 'shell exited'))
+    proc.onExit(({ exitCode }) => ConnectionManager.pushExit(tabId, exitCode, 'shell exited', true))
 
     const backend: TerminalBackend = {
       protocol: 'local',

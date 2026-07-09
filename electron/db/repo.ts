@@ -1,5 +1,6 @@
 import { DatabaseService } from '../services/DatabaseService'
 import { CryptoService } from '../services/CryptoService'
+import { scopeSnippet } from './snippetScope'
 import type {
   Group,
   Session,
@@ -406,21 +407,26 @@ export const snippetsRepo = {
   },
   create(data: Partial<Snippet> & { name: string; command: string }): Snippet {
     const db = DatabaseService.get()
+    const scope = scopeSnippet(data.is_global, data.session_id)
     const info = db
       .prepare(`INSERT INTO snippets (name, description, command, tags, is_global, session_id) VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(data.name, data.description ?? null, data.command, JSON.stringify(data.tags ?? []), data.is_global === false ? 0 : 1, data.session_id ?? null)
+      .run(data.name, data.description ?? null, data.command, JSON.stringify(data.tags ?? []), scope.is_global, scope.session_id)
     return rowToSnippet(db.prepare(`SELECT * FROM snippets WHERE id = ?`).get(info.lastInsertRowid))
   },
   update(id: number, data: Partial<Snippet>): Snippet {
     const db = DatabaseService.get()
     const cur = rowToSnippet(db.prepare(`SELECT * FROM snippets WHERE id = ?`).get(id))
+    const scope = scopeSnippet(
+      data.is_global ?? cur.is_global,
+      data.session_id !== undefined ? data.session_id : cur.session_id
+    )
     db.prepare(`UPDATE snippets SET name=?, description=?, command=?, tags=?, is_global=?, session_id=? WHERE id=?`).run(
       data.name ?? cur.name,
       data.description !== undefined ? data.description : cur.description,
       data.command ?? cur.command,
       JSON.stringify(data.tags ?? cur.tags),
-      (data.is_global ?? cur.is_global) ? 1 : 0,
-      data.session_id !== undefined ? data.session_id : cur.session_id,
+      scope.is_global,
+      scope.session_id,
       id
     )
     return rowToSnippet(db.prepare(`SELECT * FROM snippets WHERE id = ?`).get(id))

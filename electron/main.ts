@@ -86,10 +86,11 @@ function applyCsp(): void {
   })
 }
 
-app.whenReady().then(() => {
-  // Initialize storage + crypto before any IPC can touch the vault.
+app.whenReady().then(async () => {
+  // Initialize storage + crypto before any IPC can touch the vault. The vault key may
+  // come from the OS keychain, which is async, so nothing may run before it resolves.
   DatabaseService.init()
-  CryptoService.init()
+  await CryptoService.init()
   CryptoService.setOnLocked(() => Bus.emit('vault:locked'))
   const lockTimeout = Number(settingsRepo.get('security.vaultLockTimeout') ?? '0')
   if (lockTimeout > 0) CryptoService.setLockTimeout(lockTimeout)

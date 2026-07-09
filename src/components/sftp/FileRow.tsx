@@ -49,6 +49,9 @@ export function FileRow({
       </td>
       <td className="py-1 text-[11px] text-muted text-right pr-3 tabular-nums whitespace-nowrap">{entry.type === 'directory' ? '' : formatBytes(entry.size)}</td>
       <td className="py-1 text-[11px] text-muted font-mono whitespace-nowrap">{entry.permissions}</td>
+      <td className="py-1 pl-3 text-[11px] text-muted truncate whitespace-nowrap max-w-[7rem]" title={`${entry.owner}:${entry.group}`}>
+        {entry.owner}
+      </td>
       <td className="py-1 text-[11px] text-muted pr-2 truncate whitespace-nowrap">
         {entry.modified
           ? new Date(entry.modified).toLocaleString(undefined, { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })

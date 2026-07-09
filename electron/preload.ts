@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { IpcResult } from '@shared/index'
 import type { TernixApi } from '@shared/ipc'
 
@@ -148,6 +148,15 @@ const api: TernixApi = {
     export: (target, includeKeys, masterPassword) => invoke('importExport:export', target, includeKeys, masterPassword)
   },
   system: {
+    // Electron 32 removed the non-standard File.path, so a dropped file's real path
+    // can only be recovered here, in the preload. Returns '' for anything else.
+    getPathForFile: (file: File) => {
+      try {
+        return webUtils.getPathForFile(file)
+      } catch {
+        return ''
+      }
+    },
     listSerialPorts: () => invoke('system:listSerialPorts'),
     openPath: (path) => invoke('system:openPath', path),
     showItemInFolder: (path) => invoke('system:showItemInFolder', path),

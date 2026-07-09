@@ -9,6 +9,9 @@
     "resolveJsonModule": true,
     "strict": true,
     "noEmit": true,
+    // Lets the *.check.ts self-checks run under `node --experimental-strip-types`,
+    // which requires relative imports to carry their .ts extension.
+    "allowImportingTsExtensions": true,
     "types": ["node"],
     "baseUrl": ".",
     "paths": {

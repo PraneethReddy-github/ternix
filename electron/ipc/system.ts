@@ -97,10 +97,20 @@ export function registerSystemHandlers(getWindow: () => BrowserWindow | null): v
     return autoUpdater
   }
 
+  /**
+   * Apply the user's channel choice. The GitHub provider publishes a single `latest.yml`,
+   * so a separate `beta` channel file would 404 — `allowPrerelease` is what actually
+   * surfaces pre-releases. Read on every call so switching channels needs no restart.
+   */
+  const applyChannel = (up: any) => {
+    up.allowPrerelease = (settingsRepo.get('updates.channel') ?? 'stable') === 'beta'
+  }
+
   handle<{ available: boolean; version?: string }>('updates:check', async () => {
     try {
       const up = getUpdater()
       if (!up) return { available: false }
+      applyChannel(up)
       const result = await up.checkForUpdates()
       const latestVersion = result?.updateInfo?.version
       const isAvailable = latestVersion && latestVersion !== app.getVersion()
@@ -112,7 +122,9 @@ export function registerSystemHandlers(getWindow: () => BrowserWindow | null): v
 
   handle<void>('updates:download', async () => {
     const up = getUpdater()
-    if (up) await up.downloadUpdate()
+    if (!up) return
+    applyChannel(up)
+    await up.downloadUpdate()
   })
 
   on('updates:install', () => {

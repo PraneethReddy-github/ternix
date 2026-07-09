@@ -21,17 +21,12 @@ export function usePane(side: Side, tabId: string | null) {
       setLoading(true)
       setError(null)
       try {
+        // Ordering is the view's concern — <FileList> sorts on render so the sort
+        // button re-orders instantly instead of refetching the directory.
         const items =
           side === 'local'
             ? await window.ternix.localfs.listDir(p)
             : await window.ternix.sftp.listDir(tabId!, p)
-        items.sort((a, b) =>
-          a.type === 'directory' && b.type !== 'directory'
-            ? -1
-            : a.type !== 'directory' && b.type === 'directory'
-              ? 1
-              : a.name.localeCompare(b.name)
-        )
         setEntries(items)
         setPath(p)
         if (side === 'local') useSftpStore.getState().setLocalPath(p)

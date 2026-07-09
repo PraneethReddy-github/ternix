@@ -19,7 +19,9 @@ export function registerSnippetHandlers(): void {
         command: s.command,
         description: s.description ?? null,
         tags: Array.isArray(s.tags) ? s.tags : [],
-        is_global: s.is_global !== false
+        // ponytail: session ids are meaningless across machines, so imports land global.
+        // Thread a session mapping through here if scoped snippets ever need to survive export.
+        is_global: true
       })
       n++
     }

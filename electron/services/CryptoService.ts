@@ -1,9 +1,10 @@
 import crypto from 'node:crypto'
 import { app } from 'electron'
 import { join } from 'node:path'
-import { readFileSync, writeFileSync, existsSync, chmodSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, chmodSync, unlinkSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { DatabaseService } from './DatabaseService'
+import { planVaultKey } from './vaultKeyPlan'
 
 const nodeRequire = createRequire(import.meta.url)
 
@@ -41,8 +42,9 @@ export class VaultLockedError extends Error {
  * Owns the symmetric vault key and all credential encryption.
  *
  * Two modes:
- *  - keychain mode (default): a random 256-bit key lives in the OS keychain (or a 0600
- *    key file fallback). The vault is always "unlocked".
+ *  - keychain mode (default): a random 256-bit key lives in the OS keychain. Only when
+ *    no keychain exists does it fall back to a 0600 key file. The vault is always
+ *    "unlocked".
  *  - master-password mode: the key is derived via PBKDF2(SHA-512, 100k) from the user's
  *    master password + a stored salt. After an idle timeout the key is zeroed (locked).
  */
@@ -53,8 +55,8 @@ class CryptoServiceImpl {
   private lockTimeoutMs = 0
   private onLockedCb: (() => void) | null = null
 
-  /** Called once at startup after the DB is ready. */
-  init(): void {
+  /** Called once at startup after the DB is ready, before any IPC is registered. */
+  async init(): Promise<void> {
     const db = DatabaseService.get()
     const meta = db.prepare(`SELECT using_keychain FROM vault_meta WHERE id = 1`).get() as
       | { using_keychain: number }
@@ -62,7 +64,7 @@ class CryptoServiceImpl {
     this.usingKeychain = !meta || meta.using_keychain === 1
 
     if (this.usingKeychain) {
-      this.key = this.loadOrCreateKeychainKey()
+      this.key = await this.loadOrCreateKeychainKey(this.hasEncryptedSecrets())
     } else {
       // master-password mode → stay locked until unlock() is called.
       this.key = null
@@ -139,9 +141,9 @@ class CryptoServiceImpl {
    * Set or change the master password. Re-encrypts every stored secret with the new key.
    * `oldPassword` is null when transitioning from keychain mode.
    */
-  setMasterPassword(oldPassword: string | null, newPassword: string): void {
+  async setMasterPassword(oldPassword: string | null, newPassword: string): Promise<void> {
     const db = DatabaseService.get()
-    const oldKey = this.currentKeyForReencrypt(oldPassword)
+    const oldKey = await this.currentKeyForReencrypt(oldPassword)
 
     const salt = crypto.randomBytes(16)
     const newKey = this.deriveKey(newPassword, salt)
@@ -162,11 +164,12 @@ class CryptoServiceImpl {
   }
 
   /** Remove the master password and revert to keychain mode. */
-  removeMasterPassword(currentPassword: string): void {
+  async removeMasterPassword(currentPassword: string): Promise<void> {
     if (!this.unlock(currentPassword)) throw new Error('Current master password is incorrect.')
     const db = DatabaseService.get()
     const oldKey = this.requireKey()
-    const newKey = this.loadOrCreateKeychainKey()
+    // A fresh key is intended here: reencryptAll() rewrites every secret under it.
+    const newKey = await this.loadOrCreateKeychainKey(false)
 
     const tx = db.transaction(() => {
       this.reencryptAll(oldKey, newKey)
@@ -200,9 +203,9 @@ class CryptoServiceImpl {
     return this.key
   }
 
-  private currentKeyForReencrypt(oldPassword: string | null): Buffer {
+  private async currentKeyForReencrypt(oldPassword: string | null): Promise<Buffer> {
     if (this.usingKeychain) {
-      return this.key ?? this.loadOrCreateKeychainKey()
+      return this.key ?? (await this.loadOrCreateKeychainKey(true))
     }
     if (oldPassword == null) throw new Error('Current master password required.')
     if (!this.unlock(oldPassword)) throw new Error('Current master password is incorrect.')
@@ -262,31 +265,101 @@ class CryptoServiceImpl {
     }
   }
 
-  private loadOrCreateKeychainKey(): Buffer {
+  /**
+   * Resolve the keychain-mode vault key. The OS keychain is the store of record; the
+   * 0600 file exists only for machines without one (headless Linux, keytar build failed).
+   * Vaults created by older builds keep their key on disk — those are migrated into the
+   * keychain here, and the file is removed only once the key reads back correctly.
+   */
+  private async loadOrCreateKeychainKey(vaultHasSecrets: boolean): Promise<Buffer> {
     const kt = loadKeytar()
-    if (kt) {
-      // keytar is async; we run it synchronously via a small spin would be wrong, so we
-      // use a synchronous file cache keyed alongside the keychain entry. To keep init
-      // synchronous, we read/write the keychain through deasync-free means: cache the
-      // key material in a 0600 file and treat the keychain as the source of truth on a
-      // best-effort async basis.
-      const cached = this.readKeyFile()
-      if (cached) {
-        // opportunistically mirror into the keychain
-        kt.setPassword(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT, cached.toString('base64')).catch(() => {})
-        return cached
-      }
-      const fresh = crypto.randomBytes(KEY_LEN)
-      kt.setPassword(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT, fresh.toString('base64')).catch(() => {})
-      this.writeKeyFile(fresh)
-      return fresh
+    // A throwing credential store is NOT the same as an empty one. Conflating them would
+    // let a locked keyring look like a fresh install, and we would mint a new key over a
+    // vault full of secrets we could no longer read.
+    const probe = kt ? await this.readKeychain(kt) : { ok: false as const }
+    const keychainKey = probe.ok ? probe.key : null
+    const fileKey = this.readKeyFile()
+
+    const plan = planVaultKey({
+      keychainAvailable: probe.ok,
+      keychainHasKey: !!keychainKey,
+      fileHasKey: !!fileKey,
+      vaultHasSecrets
+    })
+
+    if (plan.use === 'refuse') {
+      throw new Error(
+        'Ternix cannot reach your OS credential store, and the vault key is not on disk. ' +
+          'Refusing to start with a new key — your saved passwords and private keys would ' +
+          'become unreadable. Unlock your login keyring and start Ternix again.'
+      )
     }
-    // No keychain available → 0600 key file fallback.
-    const existing = this.readKeyFile()
-    if (existing) return existing
-    const fresh = crypto.randomBytes(KEY_LEN)
-    this.writeKeyFile(fresh)
-    return fresh
+
+    const key =
+      plan.use === 'keychain' ? keychainKey! : plan.use === 'file' ? fileKey! : crypto.randomBytes(KEY_LEN)
+
+    if (plan.writeKeychain) {
+      const stored = await this.writeAndVerifyKeychain(kt!, key)
+      if (!stored) {
+        // The keychain refused the key or handed back something else. Keep the key on
+        // disk rather than lose the vault, and never delete the file we may still need.
+        if (!fileKey) this.writeKeyFile(key)
+        return key
+      }
+    }
+    if (plan.writeFile) this.writeKeyFile(key)
+    if (plan.removeFile) this.removeKeyFile()
+    return key
+  }
+
+  /** `{ ok: false }` means the store errored; `{ ok: true, key: null }` means no entry. */
+  private async readKeychain(
+    kt: NonNullable<typeof keytar>
+  ): Promise<{ ok: true; key: Buffer | null } | { ok: false }> {
+    try {
+      const b64 = await kt.getPassword(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+      if (!b64) return { ok: true, key: null }
+      const buf = Buffer.from(b64, 'base64')
+      return { ok: true, key: buf.length === KEY_LEN ? buf : null }
+    } catch {
+      return { ok: false }
+    }
+  }
+
+  /** True once anything in the database is encrypted under the current vault key. */
+  private hasEncryptedSecrets(): boolean {
+    const db = DatabaseService.get()
+    const row = db
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM sessions
+              WHERE password_enc IS NOT NULL
+                 OR passphrase_enc IS NOT NULL
+                 OR vnc_password_enc IS NOT NULL)
+         + (SELECT COUNT(*) FROM ssh_keys) AS n`
+      )
+      .get() as { n: number }
+    return row.n > 0
+  }
+
+  /** Write, then read back and compare. Only a verified round-trip counts as stored. */
+  private async writeAndVerifyKeychain(kt: NonNullable<typeof keytar>, key: Buffer): Promise<boolean> {
+    try {
+      await kt.setPassword(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT, key.toString('base64'))
+      const back = await this.readKeychain(kt)
+      return back.ok && !!back.key && back.key.equals(key)
+    } catch {
+      return false
+    }
+  }
+
+  private removeKeyFile(): void {
+    const p = this.keyFilePath()
+    try {
+      if (existsSync(p)) unlinkSync(p)
+    } catch {
+      /* best effort — a stale file is not fatal, it is just redundant */
+    }
   }
 
   private keyFilePath(): string {

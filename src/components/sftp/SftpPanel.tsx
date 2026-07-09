@@ -153,10 +153,12 @@ export function SftpPanel() {
               if (!name) return
               const dir = side === 'local' ? single.path.slice(0, single.path.length - single.name.length) : single.path.replace(/[^/]+$/, '')
               const next = side === 'local' ? localJoin(dir, name) : posixJoin(dir.replace(/\/$/, ''), name)
+              if (name === single.name) return
               try {
                 if (side === 'local') await window.ternix.localfs.rename(single.path, next)
                 else await window.ternix.sftp.rename(tabId, single.path, next)
                 pane.refresh()
+                notify(`Renamed to "${name}"`, 'success')
               } catch (e: any) {
                 notify(e.message, 'error')
               }
@@ -176,15 +178,21 @@ export function SftpPanel() {
           message: single ? `Delete "${single.name}"?` : `Delete ${many} items?`,
           danger: true,
           onConfirm: async () => {
+            // Deleting a remote directory walks it recursively, so say what's happening.
+            notify(single ? `Deleting "${single.name}"…` : `Deleting ${many} items…`, 'info')
+            let failed = 0
             for (const entry of entries) {
               try {
                 if (side === 'local') await window.ternix.localfs.delete(entry.path, entry.type === 'directory')
                 else await window.ternix.sftp.delete(tabId, entry.path, entry.type === 'directory')
               } catch (e: any) {
+                failed++
                 notify(e.message, 'error')
               }
             }
             pane.refresh()
+            // Don't paper over an error toast with a success one.
+            if (!failed) notify(single ? `Deleted "${single.name}"` : `Deleted ${many} items`, 'success')
           }
         })
     })
@@ -200,7 +208,8 @@ export function SftpPanel() {
         <div className="h-px bg-border shrink-0" />
         <FileList title="Remote" side="remote" pane={remote} onOpenEntry={openEntry('remote')} onMkdir={mkdir('remote')} onDropTransfer={transfer} contextItems={contextItems} />
       </div>
-      <div className="border-t border-border shrink-0">
+      {/* Fixed strip: the queue scrolls internally instead of growing and shoving the file lists up. */}
+      <div className="border-t border-border shrink-0 h-56">
         <TransferQueue />
       </div>
       {chmodTarget && (

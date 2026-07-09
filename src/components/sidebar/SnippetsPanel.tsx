@@ -5,6 +5,7 @@ import { useTabStore } from '@/store/useTabStore'
 import { useUiStore } from '@/store/useUiStore'
 import { PanelHeader } from '@/components/layout/Sidebar'
 import { fuzzyFilter } from '@/utils/fuzzy'
+import { visibleInSession } from '@/utils/snippets'
 import { runCommandsSequentially } from '@/utils/runCommands'
 
 /**
@@ -42,6 +43,7 @@ export function expandSnippet(command: string, onDone: (expanded: string) => voi
 export function SnippetsPanel() {
   const [snippets, setSnippets] = useState<Snippet[]>([])
   const [filter, setFilter] = useState('')
+  const sessionId = useTabStore((s) => s.getActivePane()?.sessionId ?? null)
   const openDialog = useUiStore((s) => s.openDialog)
   const notify = useUiStore((s) => s.notify)
 
@@ -84,7 +86,8 @@ export function SnippetsPanel() {
     }
   }
 
-  const filtered = fuzzyFilter(filter, snippets, (s) => `${s.name} ${s.description ?? ''} ${s.tags.join(' ')}`)
+  const visible = snippets.filter((s) => visibleInSession(s, sessionId))
+  const filtered = fuzzyFilter(filter, visible, (s) => `${s.name} ${s.description ?? ''} ${s.tags.join(' ')}`)
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -124,7 +127,7 @@ export function SnippetsPanel() {
             {s.tags.length > 0 && <div className="flex gap-1 mt-1 flex-wrap">{s.tags.map((t) => <span key={t} className="text-[10px] px-1 rounded bg-surface-2 text-muted">{t}</span>)}</div>}
           </div>
         ))}
-        {snippets.length === 0 && <div className="text-center text-[12px] text-muted mt-6">No snippets yet.</div>}
+        {visible.length === 0 && <div className="text-center text-[12px] text-muted mt-6">No snippets yet.</div>}
       </div>
     </div>
   )

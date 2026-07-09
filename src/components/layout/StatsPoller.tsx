@@ -1,39 +1,45 @@
 import { useEffect, useRef } from 'react'
 import { useTabStore } from '@/store/useTabStore'
 import { useStatsStore } from '@/store/useStatsStore'
+import { activePanes, statsTargetFor } from '@/utils/statsTarget'
 
 const POLL_MS = 3000
 
 /**
  * Renderless component — always mounted in RootLayout.
  * Polls stats every 3 s regardless of which sidebar view is open.
- * Resets history when the active SSH session changes.
+ * Resets history when the active session changes.
  */
 export function StatsPoller() {
-  // The active connected SSH pane id, or null for local
-  const sshTabId = useTabStore((s) => {
-    const tab = s.tabs.find((t) => t.id === s.activeTabId)
-    return tab?.panes.find((p) => p.protocol === 'ssh' && p.state === 'connected')?.id ?? null
+  // Both selectors return primitives so they stay referentially stable across renders.
+  const kind = useTabStore((s) => statsTargetFor(activePanes(s)).kind)
+  const tabId = useTabStore((s) => {
+    const t = statsTargetFor(activePanes(s))
+    return t.kind === 'remote' ? t.tabId : null
   })
 
   const fetchingRef = useRef(false)
 
   // Reset history whenever the session changes (tab switch, new connection, disconnect)
   useEffect(() => {
-    useStatsStore.getState().resetForTab(sshTabId)
-  }, [sshTabId])
+    useStatsStore.getState().resetForTab(tabId)
+  }, [kind, tabId])
 
   // Polling loop
   useEffect(() => {
+    // The session hasn't connected yet. Polling here would fetch the local machine and
+    // pass it off as the server's, so we poll nothing and let the panel show its spinner.
+    if (kind === 'pending') return
+
     let cancelled = false
 
     const poll = async () => {
       if (fetchingRef.current) return        // don't stack up fetches
       fetchingRef.current = true
       try {
-        const s = await (window as any).ternix.stats.fetch(sshTabId)
+        const s = await (window as any).ternix.stats.fetch(tabId)
         if (!cancelled) {
-          useStatsStore.getState().setLatest(s, sshTabId)
+          useStatsStore.getState().setLatest(s, tabId)
         }
       } catch {
         // silently ignore — status bar just shows last good values
@@ -50,7 +56,7 @@ export function StatsPoller() {
       cancelled = true
       clearInterval(id)
     }
-  }, [sshTabId])
+  }, [kind, tabId])
 
   return null
 }

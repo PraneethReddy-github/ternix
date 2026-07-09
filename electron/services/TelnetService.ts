@@ -85,7 +85,9 @@ class TelnetServiceImpl {
         sentPass = true
       }
     })
-    socket.on('close', () => ConnectionManager.pushExit(tabId, 0, 'connection closed'))
+    socket.on('close', (hadError: boolean) =>
+      ConnectionManager.pushExit(tabId, 0, hadError ? 'connection lost' : 'connection closed', !hadError)
+    )
     socket.on('error', (err) => ConnectionManager.pushStatus(tabId, 'error', err.message))
 
     await new Promise<void>((resolve, reject) => {

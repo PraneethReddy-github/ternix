@@ -78,8 +78,9 @@ class ConnectionManagerImpl {
     Bus.emit(`terminal:status:${tabId}`, { state, message })
   }
 
-  pushExit(tabId: string, code: number, reason?: string): void {
-    Bus.emit(`terminal:exit:${tabId}`, { code, reason })
+  /** `clean` = the session ended on purpose (shell exited / peer closed), not a dropped link. */
+  pushExit(tabId: string, code: number, reason?: string, clean = false): void {
+    Bus.emit(`terminal:exit:${tabId}`, { code, reason, clean })
     this.finishLog(tabId, reason ?? `exit ${code}`)
   }
 

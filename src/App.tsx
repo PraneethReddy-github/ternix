@@ -97,7 +97,10 @@ export default function App() {
       if (useSettingsStore.getState().getBool('updates.autoCheck')) {
         window.ternix.updates.check().then((res) => {
           if (res.available) {
-            useUiStore.getState().notify(`Update v${res.version} is available! Check Settings.`, 'info')
+            useUiStore.getState().notify(`Update v${res.version} is available`, 'info', {
+              label: 'View',
+              onClick: () => useUiStore.getState().openSettings('updates')
+            })
           }
         }).catch(() => {})
       }
