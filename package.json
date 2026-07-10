@@ -1,7 +1,7 @@
 {
   "name": "ternix",
-  "version": "1.0.2",
-  "description": "Ternix \u2014 the last terminal you will ever need. A modern SSH/remote session manager.",
+  "version": "1.0.3",
+  "description": "Ternix — the last terminal you will ever need. A modern SSH/remote session manager.",
   "homepage": "https://github.com/PraneethReddy-github/ternix",
   "author": "Ternix",
   "license": "MIT",
