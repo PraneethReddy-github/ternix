@@ -8,6 +8,7 @@ import { ThemeEditorDialog } from './ThemeEditorDialog'
 import { ExportImportDialog } from './ExportImportDialog'
 import { ConnectionLogDialog } from './ConnectionLogDialog'
 import { PromptDialog } from './PromptDialog'
+import { UnlockVaultDialog } from './UnlockVaultDialog'
 
 export function DialogHost() {
   const dialogs = useUiStore((s) => s.dialogs)
@@ -43,6 +44,8 @@ export function DialogHost() {
             return <ConnectionLogDialog key={key} sessionId={dialog.sessionId} onClose={onClose} />
           case 'prompt':
             return <PromptDialog key={key} {...dialog} onClose={onClose} />
+          case 'unlockVault':
+            return <UnlockVaultDialog key={key} onResolve={dialog.onResolve} onClose={onClose} />
           default:
             return null
         }

@@ -4,9 +4,11 @@ import { readFileSync } from 'node:fs'
 import { exec, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { ConnectionManager } from '../services/ConnectionManager'
+import { kelvinTenthsToCelsius, cpuDeltaPercent } from './statsCalc'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 // ── Non-blocking process helpers ───────────────────────────────────────────
 // IMPORTANT: never use execSync here. This code runs on the Electron *main*
@@ -210,8 +212,7 @@ async function localNet(): Promise<StatsNet[]> {
     .slice(0, 4)
 }
 
-function localTemps(): StatsTemp[] {
-  if (process.platform !== 'linux') return []
+function linuxTemps(): StatsTemp[] {
   try {
     const { readdirSync } = require('node:fs') as typeof import('node:fs')
     return readdirSync('/sys/class/thermal')
@@ -225,40 +226,80 @@ function localTemps(): StatsTemp[] {
   } catch { return [] }
 }
 
-let localProcsState: { time: number; procs: Map<number, { cpu: number }> } | null = null
+/**
+ * Best-effort CPU temperature on Windows via the ACPI thermal zone (root/wmi). Many
+ * desktops don't expose MSAcpi_ThermalZoneTemperature at all (and some need admin), so
+ * this legitimately returns [] on those machines — Windows has no userland API for core
+ * temps without a kernel driver. Cached because it spawns PowerShell and temperature
+ * moves slowly.
+ */
+async function winTemps(): Promise<StatsTemp[]> {
+  const raw = await ps(
+    'Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | ' +
+      'Select-Object InstanceName,CurrentTemperature | ConvertTo-Json -Compress',
+    5000
+  )
+  return psJsonArray(raw).flatMap((z, i) => {
+    const celsius = kelvinTenthsToCelsius(Number(z.CurrentTemperature))
+    // Firmware that doesn't really implement the sensor tends to report 0 K or garbage.
+    if (!(celsius > 0) || celsius > 150) return []
+    const tail = typeof z.InstanceName === 'string' ? z.InstanceName.split('\\').pop() : ''
+    return [{ label: tail || `Thermal zone ${i}`, celsius }]
+  }).slice(0, 4)
+}
+
+const winTempsCached = cached(30_000, winTemps)
+
+function localTemps(): Promise<StatsTemp[]> {
+  if (process.platform === 'linux') return Promise.resolve(linuxTemps())
+  if (process.platform === 'win32') return winTempsCached()
+  return Promise.resolve([])
+}
+
+type ProcSample = { cpu: number; name: string; mem: number }
+let localProcsState: { time: number; procs: Map<number, ProcSample> } | null = null
+
+/** Snapshot every process's cumulative CPU seconds (+ name/mem), keyed by PID. */
+async function winProcSnapshot(): Promise<Map<number, ProcSample> | null> {
+  const raw = await ps('Get-Process | Select-Object Id,Name,CPU,WorkingSet | ConvertTo-Json -Compress', 3000)
+  if (!raw) return null
+  const map = new Map<number, ProcSample>()
+  for (const p of psJsonArray(raw)) {
+    if (p.CPU == null || p.Name === 'Idle') continue
+    map.set(p.Id, { cpu: p.CPU, name: p.Name, mem: p.WorkingSet || 0 })
+  }
+  return map
+}
 
 async function localTopProcess(): Promise<{ name: string; cpu: number; mem: number } | null> {
   try {
     if (process.platform === 'win32') {
-      const raw = await ps(
-        'Get-Process | Select-Object Id,Name,CPU,WorkingSet | ConvertTo-Json -Compress',
-        3000
-      )
-      if (!raw) return null
-      const procs = psJsonArray(raw)
+      // %CPU needs a delta of cumulative CPU seconds between two samples. On the very
+      // first call there's no baseline, so take a quick second sample right away —
+      // otherwise the top process shows nothing until the next poll (~15 s later),
+      // while Linux/macOS get it instantly from `ps`.
+      if (!localProcsState) {
+        const first = await winProcSnapshot()
+        if (!first) return null
+        localProcsState = { time: Date.now(), procs: first }
+        await sleep(300)
+      }
+      const current = await winProcSnapshot()
+      if (!current) return null
       const now = Date.now()
-      const currentProcs = new Map<number, { cpu: number }>()
+      const dtSec = (now - localProcsState.time) / 1000
       let topProc: { name: string; cpu: number; mem: number } | null = null
       let maxPct = -1
-      
-      for (const p of procs) {
-        if (p.CPU == null || p.Name === 'Idle') continue
-        currentProcs.set(p.Id, { cpu: p.CPU })
-        
-        if (localProcsState) {
-          const old = localProcsState.procs.get(p.Id)
-          if (old && p.CPU >= old.cpu) {
-            const dtSec = (now - localProcsState.time) / 1000
-            const dCpu = p.CPU - old.cpu
-            const pct = (dCpu / dtSec) / os.cpus().length * 100
-            if (pct > maxPct) {
-              maxPct = pct
-              topProc = { name: p.Name, cpu: Math.round(pct * 10) / 10, mem: p.WorkingSet || 0 }
-            }
-          }
+      for (const [id, p] of current) {
+        const old = localProcsState.procs.get(id)
+        if (!old || p.cpu < old.cpu) continue
+        const pct = cpuDeltaPercent(p.cpu - old.cpu, dtSec, os.cpus().length)
+        if (pct > maxPct) {
+          maxPct = pct
+          topProc = { name: p.name, cpu: pct, mem: p.mem }
         }
       }
-      localProcsState = { time: now, procs: currentProcs }
+      localProcsState = { time: now, procs: current }
       return topProc
     } else if (process.platform === 'darwin') {
       const raw = (await sh('ps -rc -eo pcpu,pmem,comm | head -n 2 | tail -n 1', 3000)).trim()
@@ -282,11 +323,12 @@ const topCached = cached(15_000, localTopProcess)
 async function getLocalStats(): Promise<RemoteStats> {
   // All child processes run concurrently and non-blockingly; the main process
   // stays responsive while they resolve.
-  const [cpu, disk, net, topProcess] = await Promise.all([
+  const [cpu, disk, net, topProcess, temps] = await Promise.all([
     cpuPercent(),
     diskCached(),
     localNet(),
-    topCached()
+    topCached(),
+    localTemps()
   ])
   const totalMem = os.totalmem()
   const freeMem = os.freemem()
@@ -302,7 +344,7 @@ async function getLocalStats(): Promise<RemoteStats> {
     load: [Math.round(loadAvg[0] * 100) / 100, Math.round(loadAvg[1] * 100) / 100, Math.round(loadAvg[2] * 100) / 100],
     uptimeSecs: os.uptime(),
     procs: 0,
-    temps: localTemps(),
+    temps,
     topProcess,
     source: 'local',
     hostname: os.hostname()

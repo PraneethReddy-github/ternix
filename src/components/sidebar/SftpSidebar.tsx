@@ -49,7 +49,7 @@ export function SftpSidebar() {
       </div>
 
       <div className="flex-1 overflow-hidden">
-        <TransferQueue />
+        <TransferQueue fill />
       </div>
     </div>
   )

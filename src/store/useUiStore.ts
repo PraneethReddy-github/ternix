@@ -12,6 +12,7 @@ export type DialogKind =
   | { kind: 'connectionLog'; sessionId?: number }
   | { kind: 'confirm'; title: string; message: string; danger?: boolean; onConfirm: () => void; onCancel?: () => void }
   | { kind: 'prompt'; title: string; label?: string; defaultValue?: string; password?: boolean; onSubmit: (val: string) => void }
+  | { kind: 'unlockVault'; onResolve: (ok: boolean) => void }
 
 /** A queued dialog plus a stable id, so chained dialogs get fresh component state. */
 export type OpenDialog = DialogKind & { _id: number }

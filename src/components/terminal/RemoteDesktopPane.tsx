@@ -4,6 +4,7 @@ import type { Pane, Tab } from '@shared/ui'
 import { useTabStore } from '@/store/useTabStore'
 import { useUiStore } from '@/store/useUiStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
+import { ensureVaultUnlocked } from '@/utils/vaultGuard'
 import { ProtocolIcon } from '@/components/sidebar/ProtocolIcon'
 import { cn } from '@/utils/cn'
 
@@ -51,6 +52,13 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
 
     const connect = async () => {
       update('connecting')
+      // RDP/VNC use the saved password, which needs the vault key. Prompt for the master
+      // password first if the vault is locked (master-password mode).
+      if (!(await ensureVaultUnlocked())) {
+        if (!disposed) update('error', 'Vault is locked. Enter your master password to connect.')
+        return
+      }
+      if (disposed) return
       const el = screenRef.current
       if (!el) return
       while (el.firstChild) el.removeChild(el.firstChild) // clean slate on reconnect

@@ -51,7 +51,12 @@ function TransferRow({ id }: { id: string }) {
   )
 }
 
-export function TransferQueue() {
+/**
+ * `fill` — take all the height the parent gives (the SFTP sidebar, which has room to
+ * spare). Default (off) — size to content and cap at ~2.5 rows with an internal scroller,
+ * for the right-hand SFTP panel where the Local/Remote file lists compete for space.
+ */
+export function TransferQueue({ fill = false }: { fill?: boolean }) {
   // Select a primitive: the id list only changes when a transfer is added or cleared, so
   // progress ticks never re-render this component. Ids are UUIDs, safe to join.
   const idKey = useTransferStore((s) => Object.keys(s.transfers).join('\n'))
@@ -59,15 +64,15 @@ export function TransferQueue() {
   const ids = idKey ? idKey.split('\n') : []
 
   return (
-    <div className="flex flex-col min-h-0 h-full">
+    <div className={cn('flex flex-col', fill && 'min-h-0 h-full')}>
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-border">
         <span className="text-[11px] uppercase tracking-wide text-muted font-semibold">Transfers</span>
         <button className="text-muted hover:text-text" title="Clear completed" onClick={clearCompleted}>
           <Trash2 size={13} />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {ids.length === 0 && <div className="text-center text-[11px] text-muted py-4">No transfers</div>}
+      <div className={cn('overflow-y-auto p-2 space-y-1', fill ? 'flex-1' : 'max-h-[170px]')}>
+        {ids.length === 0 && <div className="text-center text-[11px] text-muted py-2">No transfers</div>}
         {ids.map((id) => (
           <TransferRow key={id} id={id} />
         ))}

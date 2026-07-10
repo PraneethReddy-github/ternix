@@ -208,8 +208,9 @@ export function SftpPanel() {
         <div className="h-px bg-border shrink-0" />
         <FileList title="Remote" side="remote" pane={remote} onOpenEntry={openEntry('remote')} onMkdir={mkdir('remote')} onDropTransfer={transfer} contextItems={contextItems} />
       </div>
-      {/* Fixed strip: the queue scrolls internally instead of growing and shoving the file lists up. */}
-      <div className="border-t border-border shrink-0 h-56">
+      {/* The queue sizes to its content (capped + internally scrolled) so it only takes the
+          room it needs, leaving the rest to the file lists. */}
+      <div className="border-t border-border shrink-0">
         <TransferQueue />
       </div>
       {chmodTarget && (

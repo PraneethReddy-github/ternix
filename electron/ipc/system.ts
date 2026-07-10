@@ -2,6 +2,7 @@ import { app, shell, dialog, clipboard, BrowserWindow } from 'electron'
 import { writeFileSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { handle, on } from './util'
+import { isUrl } from './openTarget'
 import { SerialService } from '../services/SerialService'
 import { ConnectionManager } from '../services/ConnectionManager'
 import { Bus } from '../services/bus'
@@ -26,7 +27,12 @@ export function registerSystemHandlers(getWindow: () => BrowserWindow | null): v
   // System
   handle('system:listSerialPorts', () => SerialService.listPorts())
   handle<void>('system:openPath', async (path: string) => {
-    await shell.openPath(path)
+    // Doubles as the terminal's link handler. shell.openPath only opens filesystem
+    // paths — a URL (e.g. a link in terminal output, or Tailscale SSH's "visit this
+    // URL to authenticate" prompt) must go through openExternal, which is the correct
+    // API for URLs on every platform (Linux/macOS/Windows).
+    if (isUrl(path)) await shell.openExternal(path)
+    else await shell.openPath(path)
   })
   handle<void>('system:showItemInFolder', (path: string) => shell.showItemInFolder(path))
   handle<string | null>('system:selectDirectory', async () => {
