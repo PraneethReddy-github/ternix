@@ -506,3 +506,4 @@ MIT — see [LICENSE](LICENSE).
   <p>Built with ❤️ using Electron, React, and xterm.js</p>
   <p><strong>>T&lt;</strong></p>
 </div>
+
