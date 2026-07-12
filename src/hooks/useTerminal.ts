@@ -136,38 +136,6 @@ export function useTerminal(pane: Pane): TerminalController {
     search.current = searchA
     terminal.current = term
 
-    // OSC 8 hyperlinks (ESC ]8;;URL … text …). Unlike a plain URL, the visible label
-    // can differ from the destination — a phishing vector from a remote host — so we
-    // preview the real target in a tooltip on hover before the user commits. Opening
-    // goes through the same handler as plain links (→ shell.openExternal). Non-HTTP
-    // protocols are dropped by xterm since allowNonHttpProtocols stays off.
-    let hoverEl: HTMLDivElement | null = null
-    const removeHover = () => { hoverEl?.remove(); hoverEl = null }
-    term.options.linkHandler = {
-      activate: (_e, uri) => { window.ternix.system.openPath(uri) },
-      hover: (e, uri) => {
-        removeHover()
-        const host = term.element
-        if (!host) return
-        const tip = document.createElement('div')
-        tip.className = 'xterm-hover' // xterm styles this class to swallow mouse events
-        tip.textContent = uri
-        Object.assign(tip.style, {
-          position: 'absolute', zIndex: '20', maxWidth: '80%',
-          padding: '2px 6px', borderRadius: '4px',
-          background: 'rgba(20,20,20,0.95)', color: '#fff',
-          font: '11px/1.4 ui-monospace, monospace', pointerEvents: 'none',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-        })
-        const rect = host.getBoundingClientRect()
-        tip.style.left = `${Math.max(2, e.clientX - rect.left)}px`
-        tip.style.top = `${Math.max(2, e.clientY - rect.top - 22)}px`
-        host.appendChild(tip)
-        hoverEl = tip
-      },
-      leave: () => removeHover()
-    }
-
     // Optional GPU renderer.
     // Ligatures (Fira Code / JetBrains Mono →, ⇒, ≥ …) only render in xterm's DOM
     // renderer, which shapes real text runs. The WebGL/canvas renderers draw glyph-by-glyph
