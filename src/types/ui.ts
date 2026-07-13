@@ -34,6 +34,10 @@ export interface Tab {
   panes: Pane[]
   activePaneId: string
   broadcast: boolean
+  /** Row heights as fractions summing to 1. Absent (or stale length) ⇒ equal heights. */
+  rowFr?: number[]
+  /** Per-row column widths as fractions summing to 1. Absent (or stale length) ⇒ equal widths. */
+  colFr?: number[][]
   /** Tab-split group: 0 = left (default), 1 = right. A split is active iff any tab is in group 1. */
   group?: 0 | 1
 }

@@ -14,6 +14,7 @@ export function TerminalPane({ tab, pane, active }: { tab: Tab; pane: Pane; acti
   const ctrl = useTerminal(pane)
   const [searchOpen, setSearchOpen] = useState(false)
   const setActivePane = useTabStore((s) => s.setActivePane)
+  const tabFocused = useTabStore((s) => s.activeTabId === tab.id)
   const showToolbar = useSettingsStore((s) => !s.getBool('appearance.compactMode'))
   const notify = useUiStore((s) => s.notify)
   const { open, element } = useContextMenu()
@@ -52,14 +53,18 @@ export function TerminalPane({ tab, pane, active }: { tab: Tab; pane: Pane; acti
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctrl.terminal.current])
 
-  // Ensure terminal grabs focus when it becomes the active pane
+  // Grab focus when this becomes the active pane of the *focused* tab. Gating on the
+  // tab matters: with a tab split both groups show a tab, so both have an "active" pane —
+  // without this they'd both re-focus themselves on every render and fight, yanking focus
+  // away from whichever pane the user just clicked. `ctrl` is a fresh object each render,
+  // so it stays out of the deps or the effect would re-fire (and re-steal) constantly.
   useEffect(() => {
-    if (active) {
-      // Small timeout to ensure DOM is visible if we just switched tabs
-      const timer = setTimeout(() => ctrl.focus(), 50)
-      return () => clearTimeout(timer)
-    }
-  }, [active, ctrl])
+    if (!active || !tabFocused) return
+    // Small timeout to ensure DOM is visible if we just switched tabs
+    const timer = setTimeout(() => ctrl.focus(), 50)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, tabFocused])
 
   const doPaste = async () => {
     const text = await window.ternix.system.readClipboard()

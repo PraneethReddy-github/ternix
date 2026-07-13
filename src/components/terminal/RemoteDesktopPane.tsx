@@ -28,6 +28,7 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
   const [message, setMessage] = useState('')
   const [attempt, setAttempt] = useState(0)
   const setActivePane = useTabStore((s) => s.setActivePane)
+  const tabFocused = useTabStore((s) => s.activeTabId === tab.id)
   const setPaneState = useTabStore((s) => s.setPaneState)
   const notify = useUiStore((s) => s.notify)
   const showToolbar = useSettingsStore((s) => !s.getBool('appearance.compactMode'))
@@ -184,13 +185,13 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pane.id, pane.sessionId, pane.protocol, attempt])
 
-  // Grab keyboard focus when this becomes the active pane.
+  // Grab keyboard focus when this becomes the active pane of the focused tab (see TerminalPane).
   useEffect(() => {
-    if (active && status === 'connected') {
+    if (active && tabFocused && status === 'connected') {
       const t = setTimeout(() => screenRef.current?.focus(), 50)
       return () => clearTimeout(t)
     }
-  }, [active, status])
+  }, [active, tabFocused, status])
 
   const openNative = async () => {
     if (pane.sessionId == null) return

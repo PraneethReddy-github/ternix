@@ -23,8 +23,13 @@ export const detachedPanes = new Set<string>()
 /** Scrollback text for adopted panes, written into the fresh xterm on mount then dropped. */
 export const pendingScrollback = new Map<string, string>()
 
-/** The tab currently being dragged, so drop targets outside the tab strip can see it. */
-export const tabDrag: { id: string | null } = { id: null }
+/**
+ * The tab currently being dragged, so drop targets outside the tab strip can see it.
+ * `lastOverApp` is when a dragover last fired inside this window — `dragend` reports
+ * clamped in-bounds coordinates when a drag is dropped outside the window, so the
+ * staleness of this timestamp is what actually tells us the drop landed elsewhere.
+ */
+export const tabDrag: { id: string | null; lastOverApp: number } = { id: null, lastOverApp: 0 }
 
 /**
  * Does this window own the pane? Main-process prompts (host key, keyboard-interactive,
@@ -83,6 +88,8 @@ interface TabState {
   splitPane: (tabId: string, dir: 'h' | 'v') => void
   closePane: (tabId: string, paneId: string) => void
   setActivePane: (tabId: string, paneId: string) => void
+  /** Persist dragged pane sizes. Fractions per row / per column-within-row, each summing to 1. */
+  setPaneFr: (tabId: string, fr: { rowFr?: number[]; colFr?: number[][] }) => void
   setPaneState: (paneId: string, state: ConnState, message?: string) => void
   setPaneRecording: (paneId: string, recording: boolean) => void
 
@@ -373,6 +380,8 @@ export const useTabStore = create<TabState>((set, get) => ({
   },
 
   setActivePane: (tabId, paneId) => set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, activePaneId: paneId } : t)) })),
+
+  setPaneFr: (tabId, fr) => set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, ...fr } : t)) })),
 
   setPaneState: (paneId, state, message) =>
     set((s) => ({

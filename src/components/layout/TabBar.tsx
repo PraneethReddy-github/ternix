@@ -12,6 +12,16 @@ import { cn } from '@/utils/cn'
 import type { Tab } from '@shared/ui'
 
 /**
+ * How stale the last in-window dragover may be at dragend and still count as "dropped
+ * inside". Chromium fires dragover every ~50-70ms while the pointer is over the window.
+ */
+const DRAG_OUT_MS = 250
+
+// Stamp every dragover so dragend can tell an outside drop (tear-off) from an inside one.
+// Capture phase: xterm and the pane grid stop some of these before they reach the window.
+window.addEventListener('dragover', () => { if (tabDrag.id) tabDrag.lastOverApp = Date.now() }, true)
+
+/**
  * Tab tear-off: hand this tab to a brand-new Ternix window. The pane ids (and
  * their live connections in the main process) move with it — the new window
  * re-attaches instead of reconnecting. Scrollback goes along as plain text.
@@ -186,15 +196,17 @@ export function TabBar({ group = 0 }: { group?: 0 | 1 }) {
               onDragStart={() => {
                 dragId.current = tab.id
                 tabDrag.id = tab.id
+                tabDrag.lastOverApp = Date.now()
               }}
               onDrop={() => dragId.current && dragId.current !== tab.id && reorderTab(dragId.current, tab.id)}
-              onDragEnd={(e) => {
+              onDragEnd={() => {
                 dragId.current = null
                 tabDrag.id = null
-                // Released outside the window (and not on a drop target) → tear off
-                // into a new window. Cancelled drags report in-bounds coords and are ignored.
-                const out = e.clientX < 0 || e.clientY < 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight
-                if (out && e.dataTransfer.dropEffect === 'none') tearOffTab(tab)
+                // Released outside the window → tear off into a new one. dragend's own
+                // coordinates are clamped back in-bounds by Chromium, so instead we ask
+                // when a dragover last fired in here: while the pointer is over the window
+                // they arrive continuously, so a stale one means the drop landed outside.
+                if (Date.now() - tabDrag.lastOverApp > DRAG_OUT_MS) tearOffTab(tab)
               }}
             />
           ))}
