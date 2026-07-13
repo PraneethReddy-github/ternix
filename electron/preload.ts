@@ -176,7 +176,9 @@ const api: TernixApi = {
     close: () => ipcRenderer.send('window:close'),
     isMaximized: () => invoke('window:isMaximized'),
     toggleFullscreen: () => ipcRenderer.send('window:toggleFullscreen'),
-    onMaximizeChange: (cb) => subscribe('window:maximize-change', cb)
+    onMaximizeChange: (cb) => subscribe('window:maximize-change', cb),
+    openTab: (payload) => ipcRenderer.send('window:openTab', payload),
+    getTearoffTab: () => invoke('window:getTearoffTab')
   },
   updates: {
     check: () => invoke('updates:check'),

@@ -1,7 +1,7 @@
-import { app, shell, dialog, clipboard, BrowserWindow } from 'electron'
+import { app, shell, dialog, clipboard, BrowserWindow, type WebContents } from 'electron'
 import { writeFileSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { handle, on } from './util'
+import { handle, handleE, on, onE } from './util'
 import { isUrl } from './openTarget'
 import { SerialService } from '../services/SerialService'
 import { ConnectionManager } from '../services/ConnectionManager'
@@ -23,7 +23,10 @@ function scheduleClipboardClear(copied: string): void {
   }, secs * 1000)
 }
 
-export function registerSystemHandlers(getWindow: () => BrowserWindow | null): void {
+export function registerSystemHandlers(): void {
+  // Multi-window: every window-scoped action targets the window that sent the IPC.
+  const senderWindow = (wc: WebContents): BrowserWindow | null => BrowserWindow.fromWebContents(wc)
+
   // System
   handle('system:listSerialPorts', () => SerialService.listPorts())
   handle<void>('system:openPath', async (path: string) => {
@@ -35,20 +38,17 @@ export function registerSystemHandlers(getWindow: () => BrowserWindow | null): v
     else await shell.openPath(path)
   })
   handle<void>('system:showItemInFolder', (path: string) => shell.showItemInFolder(path))
-  handle<string | null>('system:selectDirectory', async () => {
-    const win = getWindow()
-    const res = await dialog.showOpenDialog(win!, { properties: ['openDirectory'] })
+  handleE<string | null>('system:selectDirectory', async (e) => {
+    const res = await dialog.showOpenDialog(senderWindow(e.sender)!, { properties: ['openDirectory'] })
     return res.canceled ? null : res.filePaths[0]
   })
-  handle<string | null>('system:selectFile', async (filters?: { name: string; extensions: string[] }[]) => {
-    const win = getWindow()
-    const res = await dialog.showOpenDialog(win!, { properties: ['openFile'], filters })
+  handleE<string | null>('system:selectFile', async (e, filters?: { name: string; extensions: string[] }[]) => {
+    const res = await dialog.showOpenDialog(senderWindow(e.sender)!, { properties: ['openFile'], filters })
     return res.canceled ? null : res.filePaths[0]
   })
   handle<string>('system:readFile', (path: string) => readFileSync(path, 'utf8'))
-  handle<string | null>('system:saveFile', async (defaultName: string, content: string) => {
-    const win = getWindow()
-    const res = await dialog.showSaveDialog(win!, { defaultPath: defaultName })
+  handleE<string | null>('system:saveFile', async (e, defaultName: string, content: string) => {
+    const res = await dialog.showSaveDialog(senderWindow(e.sender)!, { defaultPath: defaultName })
     if (res.canceled || !res.filePath) return null
     writeFileSync(res.filePath, content, 'utf8')
     return res.filePath
@@ -66,18 +66,18 @@ export function registerSystemHandlers(getWindow: () => BrowserWindow | null): v
   handle<string>('system:version', () => app.getVersion())
 
   // Window controls (frameless titlebar)
-  on('window:minimize', () => getWindow()?.minimize())
-  on('window:maximize', () => {
-    const win = getWindow()
+  onE('window:minimize', (e) => senderWindow(e.sender)?.minimize())
+  onE('window:maximize', (e) => {
+    const win = senderWindow(e.sender)
     if (!win) return
     win.isMaximized() ? win.unmaximize() : win.maximize()
   })
-  on('window:close', () => getWindow()?.close())
-  on('window:toggleFullscreen', () => {
-    const win = getWindow()
+  onE('window:close', (e) => senderWindow(e.sender)?.close())
+  onE('window:toggleFullscreen', (e) => {
+    const win = senderWindow(e.sender)
     if (win) win.setFullScreen(!win.isFullScreen())
   })
-  handle<boolean>('window:isMaximized', () => getWindow()?.isMaximized() ?? false)
+  handleE<boolean>('window:isMaximized', (e) => senderWindow(e.sender)?.isMaximized() ?? false)
 
   // Broadcast: send keystrokes to multiple tabs at once
   on('broadcast:write', (tabIds: string[], data: string) => {

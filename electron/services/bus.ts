@@ -1,20 +1,17 @@
-import type { BrowserWindow } from 'electron'
+import { BrowserWindow } from 'electron'
 
 /**
- * Thin event bridge from the main process to the renderer. main.ts registers the active
- * BrowserWindow; services call `emit(channel, payload)` to push terminal data, transfer
- * progress, host-key prompts, etc. to the UI.
+ * Thin event bridge from the main process to the renderer(s). Services call
+ * `emit(channel, payload)` to push terminal data, transfer progress, host-key
+ * prompts, etc. Events broadcast to every open window — terminal channels are
+ * pane-id-scoped (`terminal:data:<paneId>`), so only the window that owns the
+ * pane has a listener. Per-window events (e.g. maximize state) are sent directly
+ * via that window's webContents instead of the Bus.
  */
 class BusImpl {
-  private win: BrowserWindow | null = null
-
-  setWindow(win: BrowserWindow): void {
-    this.win = win
-  }
-
   emit(channel: string, ...args: any[]): void {
-    if (this.win && !this.win.isDestroyed()) {
-      this.win.webContents.send(channel, ...args)
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send(channel, ...args)
     }
   }
 }

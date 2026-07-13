@@ -34,6 +34,18 @@ export interface Tab {
   panes: Pane[]
   activePaneId: string
   broadcast: boolean
+  /** Tab-split group: 0 = left (default), 1 = right. A split is active iff any tab is in group 1. */
+  group?: 0 | 1
+}
+
+/**
+ * A tab torn out of one window and adopted by a new one. Pane ids are kept, so the
+ * new window re-attaches to the still-alive connections in the main process instead
+ * of reconnecting. `scrollback` is plain buffer text per pane (colors not preserved).
+ */
+export interface TearoffPayload {
+  tab: Tab
+  scrollback: Record<string, string>
 }
 
 export type ActivityView = 'sessions' | 'sftp' | 'snippets' | 'tunnels' | 'recordings' | 'settings' | 'search' | 'monitor'

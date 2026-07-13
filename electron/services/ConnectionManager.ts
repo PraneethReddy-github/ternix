@@ -20,6 +20,8 @@ interface Entry {
   logId: number | null
   sessionName: string
   host: string | null
+  /** webContents.id of the window that owns this pane — updated on tear-off adoption. */
+  owner: number | null
 }
 
 /**
@@ -32,9 +34,9 @@ class ConnectionManagerImpl {
   /** Last working dir reported by the shell via OSC 7, keyed by tabId. */
   private cwds = new Map<string, string>()
 
-  register(tabId: string, backend: TerminalBackend, sessionName: string, host: string | null, sessionId: number | null): void {
+  register(tabId: string, backend: TerminalBackend, sessionName: string, host: string | null, sessionId: number | null, owner: number | null = null): void {
     const logId = logRepo.start(sessionId, sessionName, host)
-    this.entries.set(tabId, { backend, logId, sessionName, host })
+    this.entries.set(tabId, { backend, logId, sessionName, host, owner })
   }
 
   get(tabId: string): TerminalBackend | null {
@@ -43,6 +45,17 @@ class ConnectionManagerImpl {
 
   has(tabId: string): boolean {
     return this.entries.has(tabId)
+  }
+
+  /** Transfer a live pane to another window (tab tear-off adoption). */
+  setOwner(tabId: string, owner: number): void {
+    const e = this.entries.get(tabId)
+    if (e) e.owner = owner
+  }
+
+  /** Pane ids owned by a window — used to tear down connections when it closes. */
+  idsOwnedBy(owner: number): string[] {
+    return [...this.entries].filter(([, e]) => e.owner === owner).map(([id]) => id)
   }
 
   /** Funnel for terminal output: feed the recorder (if any) then the renderer. */
@@ -82,6 +95,9 @@ class ConnectionManagerImpl {
   pushExit(tabId: string, code: number, reason?: string, clean = false): void {
     Bus.emit(`terminal:exit:${tabId}`, { code, reason, clean })
     this.finishLog(tabId, reason ?? `exit ${code}`)
+    // The backend is dead — drop the entry so a reconnect spawn isn't mistaken
+    // for a live connection (spawn is idempotent on existing entries).
+    this.entries.delete(tabId)
   }
 
   attachRecorder(tabId: string, write: (data: string) => void): void {
@@ -94,13 +110,15 @@ class ConnectionManagerImpl {
 
   kill(tabId: string): void {
     const e = this.entries.get(tabId)
-    if (!e) return
-    try {
-      e.backend.kill()
-    } catch {
-      /* ignore */
+    if (e) {
+      try {
+        e.backend.kill()
+      } catch {
+        /* ignore */
+      }
+      this.finishLog(tabId, 'closed by user')
     }
-    this.finishLog(tabId, 'closed by user')
+    // Clean side maps even when the entry is already gone (e.g. exit deleted it).
     this.entries.delete(tabId)
     this.recorders.delete(tabId)
     this.cwds.delete(tabId)

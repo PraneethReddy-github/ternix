@@ -2,14 +2,19 @@ import { app, BrowserWindow, session as electronSession, powerMonitor } from 'el
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
+import type { TearoffPayload } from '@shared/ui'
 import { DatabaseService } from './services/DatabaseService'
 import { CryptoService } from './services/CryptoService'
 import { ConnectionManager } from './services/ConnectionManager'
+import { RecordingService } from './services/RecordingService'
+import { SftpService } from './services/SftpService'
+import { TunnelService } from './services/TunnelService'
 import { VncBridgeService } from './services/VncBridgeService'
 import { RdpGatewayService } from './services/RdpGatewayService'
 import { Bus } from './services/bus'
 import { settingsRepo } from './db/repo'
 import { registerAllIpc } from './ipc'
+import { handleE, on } from './ipc/util'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -17,11 +22,11 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('no-sandbox')
 }
 
-let mainWindow: BrowserWindow | null = null
-const getWindow = () => mainWindow
+/** Tab payloads for freshly torn-off windows, keyed by the new window's webContents id. */
+const pendingTearoffs = new Map<number, TearoffPayload>()
 
-function createWindow(): void {
-  mainWindow = new BrowserWindow({
+function createWindow(tearoff?: TearoffPayload): void {
+  const win = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 900,
@@ -43,31 +48,51 @@ function createWindow(): void {
     }
   })
 
-  Bus.setWindow(mainWindow)
+  const wcId = win.webContents.id
+  if (tearoff) pendingTearoffs.set(wcId, tearoff)
 
-  mainWindow.on('ready-to-show', () => mainWindow?.show())
-  mainWindow.on('maximize', () => Bus.emit('window:maximize-change', true))
-  mainWindow.on('unmaximize', () => Bus.emit('window:maximize-change', false))
-  mainWindow.on('closed', () => {
-    mainWindow = null
+  win.on('ready-to-show', () => win.show())
+  // Maximize state is per-window, so send it to this window only (not the Bus broadcast).
+  win.on('maximize', () => win.webContents.send('window:maximize-change', true))
+  win.on('unmaximize', () => win.webContents.send('window:maximize-change', false))
+  win.on('closed', () => {
+    pendingTearoffs.delete(wcId)
+    // Kill the connections this window owned — a renderer teardown never reaches
+    // the per-pane kill IPC when the whole window goes away.
+    for (const paneId of ConnectionManager.idsOwnedBy(wcId)) {
+      RecordingService.stop(paneId)
+      SftpService.close(paneId)
+      TunnelService.stopForTab(paneId)
+      ConnectionManager.kill(paneId)
+    }
   })
 
   // Ctrl+Shift+I opens DevTools (handy for debugging on Windows).
-  mainWindow.webContents.on('before-input-event', (_e, input) => {
+  win.webContents.on('before-input-event', (_e, input) => {
     if (input.type === 'keyDown' && input.key === 'I' && input.control && input.shift) {
-      mainWindow?.webContents.toggleDevTools()
+      win.webContents.toggleDevTools()
     }
   })
 
   // Block navigation away from the app and external window opens.
-  mainWindow.webContents.on('will-navigate', (e) => e.preventDefault())
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  win.webContents.on('will-navigate', (e) => e.preventDefault())
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
 
   if (process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
+    win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    win.loadFile(join(__dirname, '../renderer/index.html'))
   }
+}
+
+/** Tab tear-off: a renderer asks for a new window to adopt one of its tabs. */
+function registerWindowIpc(): void {
+  on('window:openTab', (payload: TearoffPayload) => createWindow(payload))
+  handleE<TearoffPayload | null>('window:getTearoffTab', (e) => {
+    const payload = pendingTearoffs.get(e.sender.id) ?? null
+    pendingTearoffs.delete(e.sender.id)
+    return payload
+  })
 }
 
 function applyCsp(): void {
@@ -101,7 +126,8 @@ app.whenReady().then(async () => {
   })
 
   applyCsp()
-  registerAllIpc(getWindow)
+  registerAllIpc()
+  registerWindowIpc()
   createWindow()
 
   app.on('activate', () => {

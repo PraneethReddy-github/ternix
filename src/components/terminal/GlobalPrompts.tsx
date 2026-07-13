@@ -5,6 +5,7 @@ import { Modal, Field } from '@/components/ui/Modal'
 import { shortFingerprint, fingerprintSparkline } from '@/utils/sshFingerprintDisplay'
 import { cn } from '@/utils/cn'
 import { useSessionStore } from '@/store/useSessionStore'
+import { ownsPane } from '@/store/useTabStore'
 
 /** Renders blocking modals driven by main-process events: host-key verification,
  *  keyboard-interactive auth prompts, and the just-in-time credential picker. */
@@ -15,12 +16,15 @@ export function GlobalPrompts() {
   const [credReq, setCredReq] = useState<CredentialRequest | null>(null)
 
   useEffect(() => {
-    const offHk = window.ternix.terminal.onHostKeyPrompt((p) => setHostKey(p))
+    // These channels broadcast to every window, so drop prompts for panes we don't own —
+    // otherwise the same modal pops in all windows and only the answered one clears.
+    const offHk = window.ternix.terminal.onHostKeyPrompt((p) => ownsPane(p.tabId) && setHostKey(p))
     const offKbi = window.ternix.terminal.onKbInteractive((p) => {
+      if (!ownsPane(p.tabId)) return
       setKbi(p)
       setKbiValues(p.prompts.map(() => ''))
     })
-    const offCred = window.ternix.terminal.onNeedsCredentials((req) => setCredReq(req))
+    const offCred = window.ternix.terminal.onNeedsCredentials((req) => ownsPane(req.tabId) && setCredReq(req))
     return () => {
       offHk()
       offKbi()

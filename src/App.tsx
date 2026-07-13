@@ -4,9 +4,13 @@ import { useSessionStore } from '@/store/useSessionStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useTransferStore } from '@/store/useTransferStore'
-import { useTabStore } from '@/store/useTabStore'
+import { useTabStore, pendingScrollback } from '@/store/useTabStore'
 import { useUiStore } from '@/store/useUiStore'
 import { connectSession } from '@/components/sidebar/SessionCard'
+
+// True when this window was opened to adopt a torn-off tab. Such windows must not
+// overwrite the main window's "reopen last sessions" snapshot with their single tab.
+let isTearoffWindow = false
 
 export default function App() {
   const loadSessions = useSessionStore((s) => s.load)
@@ -48,6 +52,7 @@ export default function App() {
   useEffect(() => {
     let last = ''
     return useTabStore.subscribe((state) => {
+      if (isTearoffWindow) return
       const snap = JSON.stringify(
         state.tabs.map((t) => {
           const p = t.panes.find((x) => x.id === t.activePaneId) ?? t.panes[0]
@@ -66,6 +71,17 @@ export default function App() {
       await loadTheme()
       await loadSessions()
       subscribeTransfers()
+
+      // Tab tear-off: this window was opened to adopt a live tab from another
+      // window — mount it (same pane ids, connections re-attach) and skip the
+      // normal startup behavior.
+      const tearoff = await window.ternix.window.getTearoffTab().catch(() => null)
+      if (tearoff) {
+        isTearoffWindow = true
+        for (const [paneId, text] of Object.entries(tearoff.scrollback)) pendingScrollback.set(paneId, text)
+        useTabStore.getState().adoptTab(tearoff.tab)
+        return
+      }
 
       // Startup behavior.
       const openBlank = () => {

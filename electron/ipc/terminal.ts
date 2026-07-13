@@ -1,4 +1,4 @@
-import { handle, on } from './util'
+import { handle, handleE, on } from './util'
 import type { SpawnOptions, SpawnResult } from '@shared/index'
 import { ConnectionManager } from '../services/ConnectionManager'
 import { PtyService } from '../services/PtyService'
@@ -11,13 +11,23 @@ import { RecordingService } from '../services/RecordingService'
 import { sessionsRepo, tunnelsRepo, settingsRepo } from '../db/repo'
 
 export function registerTerminalHandlers(): void {
-  handle<SpawnResult>('terminal:spawn', async (opts: SpawnOptions) => {
+  handleE<SpawnResult>('terminal:spawn', async (event, opts: SpawnOptions) => {
     const { tabId, sessionId, cols, rows } = opts
+    const owner = event.sender.id
+
+    // Tab tear-off adoption: the pane id already has a live connection spawned by
+    // another window — transfer ownership and re-attach instead of reconnecting.
+    const existing = ConnectionManager.get(tabId)
+    if (existing) {
+      ConnectionManager.setOwner(tabId, owner)
+      ConnectionManager.pushStatus(tabId, 'connected')
+      return { tabId, protocol: existing.protocol, ok: true }
+    }
 
     // Local shell when no sessionId.
     if (sessionId == null) {
       const backend = PtyService.spawn(tabId, cols, rows, opts.localShell)
-      ConnectionManager.register(tabId, backend, 'Local Shell', 'localhost', null)
+      ConnectionManager.register(tabId, backend, 'Local Shell', 'localhost', null, owner)
       maybeAutoRecord(tabId, null, 'Local Shell', cols, rows)
       return { tabId, protocol: 'local', ok: true }
     }
@@ -30,24 +40,24 @@ export function registerTerminalHandlers(): void {
       switch (session.protocol) {
         case 'ssh': {
           const r = await SshService.spawn(tabId, session, cols, rows)
-          ConnectionManager.register(tabId, r.backend, session.name, session.host, session.id)
+          ConnectionManager.register(tabId, r.backend, session.name, session.host, session.id, owner)
           banner = r.banner
           await autoStartTunnels(tabId, session.id)
           break
         }
         case 'telnet': {
           const backend = await TelnetService.spawn(tabId, session, cols, rows)
-          ConnectionManager.register(tabId, backend, session.name, session.host, session.id)
+          ConnectionManager.register(tabId, backend, session.name, session.host, session.id, owner)
           break
         }
         case 'serial': {
           const backend = await SerialService.spawn(tabId, session)
-          ConnectionManager.register(tabId, backend, session.name, session.com_port, session.id)
+          ConnectionManager.register(tabId, backend, session.name, session.com_port, session.id, owner)
           break
         }
         case 'local': {
           const backend = PtyService.spawn(tabId, cols, rows, opts.localShell)
-          ConnectionManager.register(tabId, backend, session.name, 'localhost', session.id)
+          ConnectionManager.register(tabId, backend, session.name, 'localhost', session.id, owner)
           break
         }
         case 'rdp':

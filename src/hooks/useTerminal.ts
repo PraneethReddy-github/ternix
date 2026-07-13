@@ -5,7 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import type { Pane } from '@shared/ui'
-import { useTabStore } from '@/store/useTabStore'
+import { useTabStore, detachedPanes, pendingScrollback } from '@/store/useTabStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
@@ -85,47 +85,15 @@ export function useTerminal(pane: Pane): TerminalController {
     const searchA = new SearchAddon()
     term.loadAddon(fitA)
     term.loadAddon(searchA)
-    // Links come from TWO independent providers and each needs its own wiring:
-    //   - xterm's built-in OSC 8 provider reads term.options.linkHandler.
-    //   - WebLinksAddon (plain https:// URLs in output — the common case) ignores that
-    //     option entirely: it takes activate from its 1st ctor arg and hover/leave from
-    //     its 2nd. Feeding both from one object is what keeps them in sync.
-    // Hover previews the real destination because an OSC 8 label can differ from its
-    // target (a phishing vector from a remote host). Activate goes over IPC to
-    // shell.openExternal — shell.openPath is filesystem-only and no-ops on a URL.
-    let hoverEl: HTMLDivElement | null = null
-    const removeHover = () => { hoverEl?.remove(); hoverEl = null }
-    const linkHandler = {
-      // Surface failures: openPath is fire-and-forget here, so without this a rejected
-      // open (no default browser, blocked scheme) is an invisible no-op click.
-      activate: (_e: MouseEvent, uri: string) => {
+    // Terminal links → shell.openExternal via IPC (see electron/ipc/system.ts).
+    // Surface failures: without the catch, a rejected open is an invisible no-op click.
+    term.loadAddon(
+      new WebLinksAddon((_e, uri) => {
         window.ternix.system
           .openPath(uri)
           .catch((err: Error) => useUiStore.getState().notify(`Couldn't open ${uri}: ${err.message}`, 'error'))
-      },
-      hover: (e: MouseEvent, uri: string) => {
-        removeHover()
-        const host = term.element
-        if (!host) return
-        const tip = document.createElement('div')
-        tip.textContent = uri
-        Object.assign(tip.style, {
-          position: 'absolute', zIndex: '20', maxWidth: '80%',
-          padding: '2px 6px', borderRadius: '4px',
-          background: 'rgba(20,20,20,0.95)', color: '#fff',
-          font: '11px/1.4 ui-monospace, monospace', pointerEvents: 'none',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-        })
-        const rect = host.getBoundingClientRect()
-        tip.style.left = `${Math.max(2, e.clientX - rect.left)}px`
-        tip.style.top = `${Math.max(2, e.clientY - rect.top - 22)}px`
-        host.appendChild(tip)
-        hoverEl = tip
-      },
-      leave: () => removeHover()
-    }
-    term.options.linkHandler = linkHandler
-    term.loadAddon(new WebLinksAddon(linkHandler.activate, linkHandler))
+      })
+    )
 
     const uni = new Unicode11Addon()
     term.loadAddon(uni)
@@ -135,6 +103,14 @@ export function useTerminal(pane: Pane): TerminalController {
     fitAddon.current = fitA
     search.current = searchA
     terminal.current = term
+
+    // Tab adopted from another window: replay the carried-over scrollback text
+    // so the terminal doesn't start blank (the live connection continues from here).
+    const carried = pendingScrollback.get(pane.id)
+    if (carried) {
+      pendingScrollback.delete(pane.id)
+      term.write(carried)
+    }
 
     // Optional GPU renderer.
     // Ligatures (Fira Code / JetBrains Mono →, ⇒, ≥ …) only render in xterm's DOM
@@ -304,14 +280,16 @@ export function useTerminal(pane: Pane): TerminalController {
 
     return () => {
       isDisposed = true;
-      removeHover()
       if (reconnectTimer) clearTimeout(reconnectTimer)
       ro.disconnect()
       inputDisposable.dispose()
       offData()
       offStatus()
       offExit()
-      window.ternix.terminal.kill(pane.id).catch(() => {})
+      // A detached pane's connection was handed to another window — leave it alive.
+      if (!detachedPanes.delete(pane.id)) {
+        window.ternix.terminal.kill(pane.id).catch(() => {})
+      }
       term.dispose()
       if (terminal.current === term) {
         terminal.current = null

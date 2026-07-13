@@ -6,6 +6,8 @@ export interface PaneActions {
   focus: () => void
   toggleSearch: () => void
   paste: (text: string) => void
+  /** Plain-text scrollback snapshot, used to carry history through a tab tear-off. */
+  getBuffer?: () => string
 }
 
 const registry = new Map<string, PaneActions>()

@@ -2,7 +2,6 @@ import { useRef, useState } from 'react'
 import { TitleBar } from './TitleBar'
 import { ActivityBar } from './ActivityBar'
 import { Sidebar } from './Sidebar'
-import { TabBar } from './TabBar'
 import { StatusBar } from './StatusBar'
 import { CommandPalette } from './CommandPalette'
 import { TerminalArea } from '@/components/terminal/TerminalArea'
@@ -82,11 +81,9 @@ function Content({
           <div className="w-1 cursor-col-resize hover:bg-accent/50 bg-border/40" onMouseDown={onDragStart} />
         </>
       )}
+      {/* TerminalArea owns the tab strips — split mode gives each group its own. */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <TabBar />
-        <div className="flex-1 min-h-0">
-          <TerminalArea />
-        </div>
+        <TerminalArea />
       </div>
     </>
   )

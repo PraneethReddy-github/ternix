@@ -1,18 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Plus, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
-import { useTabStore } from '@/store/useTabStore'
+import { useTabStore, isTabSplit, tabDrag } from '@/store/useTabStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
 import { useContextMenu } from '@/components/ui/ContextMenu'
 import { ProtocolIcon } from '@/components/sidebar/ProtocolIcon'
 import { connectSession } from '@/components/sidebar/SessionCard'
+import { paneActions } from '@/hooks/terminalRegistry'
 import { cn } from '@/utils/cn'
 import type { Tab } from '@shared/ui'
 
-export function TabBar() {
-  const tabs = useTabStore((s) => s.tabs)
+/**
+ * Tab tear-off: hand this tab to a brand-new Ternix window. The pane ids (and
+ * their live connections in the main process) move with it — the new window
+ * re-attaches instead of reconnecting. Scrollback goes along as plain text.
+ */
+function tearOffTab(tab: Tab) {
+  const store = useTabStore.getState()
+  if (store.tabs.length < 2) return // a lone tab is already its own window
+  const scrollback: Record<string, string> = {}
+  for (const p of tab.panes) {
+    const buf = paneActions(p.id)?.getBuffer?.()
+    if (buf) scrollback[p.id] = buf
+  }
+  window.ternix.window.openTab({ tab: { ...tab, group: 0 }, scrollback })
+  store.detachTab(tab.id)
+}
+
+/** One tab strip per split group — VSCode-style: each group owns its tabs and its own "+". */
+/** Move a tab into a split group, surfacing the store's rejection reason as a toast. */
+export function moveToGroup(tabId: string, group: 0 | 1) {
+  const err = useTabStore.getState().moveTabToGroup(tabId, group)
+  if (err) useUiStore.getState().notify(err, 'error')
+}
+
+export function TabBar({ group = 0 }: { group?: 0 | 1 }) {
+  const allTabs = useTabStore((s) => s.tabs)
   const activeTabId = useTabStore((s) => s.activeTabId)
+  const groupActive = useTabStore((s) => s.groupActive)
   const setActive = useTabStore((s) => s.setActiveTab)
   const closeTab = useTabStore((s) => s.closeTab)
   const newTab = useTabStore((s) => s.newTab)
@@ -20,6 +46,11 @@ export function TabBar() {
   const openDialog = useUiStore((s) => s.openDialog)
   const { open, element } = useContextMenu()
   const dragId = useRef<string | null>(null)
+
+  const split = isTabSplit(allTabs)
+  const tabs = split ? allTabs.filter((t) => (t.group ?? 0) === group) : allTabs
+  // While split, each group keeps showing its own tab; only one of them is focused.
+  const shownId = split ? groupActive[group] : activeTabId
 
   const stripRef = useRef<HTMLDivElement | null>(null)
   const [overflow, setOverflow] = useState({ left: false, right: false })
@@ -59,8 +90,8 @@ export function TabBar() {
   useEffect(updateOverflow, [tabs.length, updateOverflow])
   useEffect(() => {
     const strip = stripRef.current
-    if (!strip || !activeTabId) return
-    const tab = strip.querySelector<HTMLElement>(`[data-tab-id="${activeTabId}"]`)
+    if (!strip || !shownId) return
+    const tab = strip.querySelector<HTMLElement>(`[data-tab-id="${shownId}"]`)
     if (!tab) return
     const tabLeft = tab.offsetLeft
     const tabRight = tabLeft + tab.offsetWidth
@@ -70,7 +101,7 @@ export function TabBar() {
       strip.scrollLeft = tabRight - strip.clientWidth
     }
     updateOverflow()
-  }, [activeTabId, updateOverflow])
+  }, [shownId, updateOverflow])
 
   const scrollByPage = (dir: -1 | 1) => {
     const el = stripRef.current
@@ -80,12 +111,24 @@ export function TabBar() {
 
   const handleNewTab = () => {
     const proto = useSettingsStore.getState().get('general.newTabProtocol')
+    // A dialog-driven session lands in whichever group is focused, so focus this one first.
+    if (shownId) setActive(shownId)
     if (proto === 'ssh') openDialog({ kind: 'newSession' })
-    else newTab({ protocol: 'local', title: 'Local Shell' })
+    else newTab({ protocol: 'local', title: 'Local Shell', group })
   }
 
   return (
-    <div className="h-9 w-full min-w-0 flex items-stretch bg-bg border-b border-border shrink-0" style={{ overflow: 'hidden' }}>
+    <div
+      data-tabbar={group}
+      className="h-9 w-full min-w-0 flex items-stretch bg-bg border-b border-border shrink-0"
+      style={{ overflow: 'hidden' }}
+      onDragOver={(e) => tabDrag.id && e.preventDefault()}
+      onDrop={() => {
+        // Dropped on the strip's empty space → join this group, keep its order.
+        const id = tabDrag.id
+        if (id) moveToGroup(id, group)
+      }}
+    >
       {overflow.left && (
         <button
           className="shrink-0 px-1 text-muted hover:text-text hover:bg-surface-2 border-r border-border"
@@ -107,10 +150,12 @@ export function TabBar() {
             <TabItem
               key={tab.id}
               tab={tab}
-              active={tab.id === activeTabId}
+              active={tab.id === shownId}
+              focused={tab.id === activeTabId}
               onSelect={() => setActive(tab.id)}
               onClose={() => closeTab(tab.id)}
-              onContext={(e) =>
+              onContext={(e) => {
+                const st = useTabStore.getState()
                 open(e, [
                   { label: 'Open in new tab', onClick: () => openSessionInNewTab(tab) },
                   { label: 'Rename tab', onClick: () => promptRename(tab) },
@@ -127,13 +172,35 @@ export function TabBar() {
                   { label: 'Split right', onClick: () => useTabStore.getState().splitPane(tab.id, 'h') },
                   { label: 'Split down', onClick: () => useTabStore.getState().splitPane(tab.id, 'v') },
                   { separator: true },
+                  ...((tab.group ?? 0) === 1
+                    ? [
+                        { label: 'Move tab to left group', onClick: () => moveToGroup(tab.id, 0) },
+                        { label: 'Unsplit tabs', onClick: () => useTabStore.getState().unsplitTabs() }
+                      ]
+                    : [
+                        { label: 'Move tab to right group', onClick: () => moveToGroup(tab.id, 1) },
+                        ...(split ? [{ label: 'Unsplit tabs', onClick: () => useTabStore.getState().unsplitTabs() }] : [])
+                      ]),
+                  { label: 'Move tab to new window', onClick: () => tearOffTab(tab), disabled: st.tabs.length < 2 },
+                  { separator: true },
                   { label: 'Close tab', onClick: () => closeTab(tab.id) },
                   { label: 'Close other tabs', onClick: () => useTabStore.getState().closeOtherTabs(tab.id) },
                   { label: 'Close tabs to the right', onClick: () => useTabStore.getState().closeTabsToRight(tab.id) }
                 ])
-              }
-              onDragStart={() => (dragId.current = tab.id)}
+              }}
+              onDragStart={() => {
+                dragId.current = tab.id
+                tabDrag.id = tab.id
+              }}
               onDrop={() => dragId.current && dragId.current !== tab.id && reorderTab(dragId.current, tab.id)}
+              onDragEnd={(e) => {
+                dragId.current = null
+                tabDrag.id = null
+                // Released outside the window (and not on a drop target) → tear off
+                // into a new window. Cancelled drags report in-bounds coords and are ignored.
+                const out = e.clientX < 0 || e.clientY < 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight
+                if (out && e.dataTransfer.dropEffect === 'none') tearOffTab(tab)
+              }}
             />
           ))}
         </div>
@@ -200,19 +267,23 @@ function openSessionInNewTab(tab: Tab) {
 function TabItem({
   tab,
   active,
+  focused,
   onSelect,
   onClose,
   onContext,
   onDragStart,
-  onDrop
+  onDrop,
+  onDragEnd
 }: {
   tab: Tab
   active: boolean
+  focused: boolean
   onSelect: () => void
   onClose: () => void
   onContext: (e: React.MouseEvent) => void
   onDragStart: () => void
   onDrop: () => void
+  onDragEnd: (e: React.DragEvent) => void
 }) {
   const pane = tab.panes.find((p) => p.id === tab.activePaneId) ?? tab.panes[0]
   const connecting = pane?.state === 'connecting'
@@ -225,17 +296,19 @@ function TabItem({
       onDragStart={onDragStart}
       onDragOver={(e) => e.preventDefault()}
       onDrop={onDrop}
+      onDragEnd={onDragEnd}
       onMouseDown={(e) => {
         if (e.button === 1) onClose()
         else onSelect()
       }}
       onContextMenu={onContext}
       className={cn(
-        'group flex items-center gap-2 px-3 min-w-[120px] max-w-[200px] shrink-0 border-r border-border cursor-pointer select-none',
+        'group relative flex items-center gap-2 px-3 min-w-[120px] max-w-[200px] shrink-0 border-r border-border cursor-pointer select-none',
         active ? 'bg-surface text-text' : 'bg-bg text-muted hover:bg-surface-2'
       )}
     >
-      {active && <span className="absolute" />}
+      {/* Only the focused group's shown tab gets the accent bar — like VSCode's inactive editor group. */}
+      {active && <span className={cn('absolute inset-x-0 top-0 h-[2px]', focused ? 'bg-accent' : 'bg-border')} />}
       {connecting ? (
         <Loader2 size={13} className="tx-spin shrink-0" />
       ) : (

@@ -24,7 +24,19 @@ export function TerminalPane({ tab, pane, active }: { tab: Tab; pane: Pane; acti
       clear: () => ctrl.clear(),
       focus: () => ctrl.focus(),
       toggleSearch: () => setSearchOpen((v) => !v),
-      paste: (t) => ctrl.paste(t)
+      paste: (t) => ctrl.paste(t),
+      getBuffer: () => {
+        // Plain-text snapshot of the last ~1000 buffer lines for tab tear-off.
+        // ponytail: colors/attributes are dropped; @xterm/addon-serialize would keep them.
+        const term = ctrl.terminal.current
+        if (!term) return ''
+        const buf = term.buffer.active
+        const lines: string[] = []
+        for (let i = Math.max(0, buf.length - 1000); i < buf.length; i++) {
+          lines.push(buf.getLine(i)?.translateToString(true) ?? '')
+        }
+        return lines.join('\r\n').replace(/(\r\n)+$/, '\r\n')
+      }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pane.id])

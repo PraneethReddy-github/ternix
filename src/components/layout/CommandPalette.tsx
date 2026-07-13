@@ -4,6 +4,7 @@ import { useUiStore } from '@/store/useUiStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useTabStore } from '@/store/useTabStore'
 import { connectSession } from '@/components/sidebar/SessionCard'
+import { moveToGroup } from '@/components/layout/TabBar'
 import { fuzzyScore } from '@/utils/fuzzy'
 
 interface Item {
@@ -38,6 +39,8 @@ export function CommandPalette() {
       { id: 'a.newLocal', label: 'New local shell', icon: <TerminalSquare size={15} />, run: () => useTabStore.getState().newTab({ protocol: 'local', title: 'Local Shell' }) },
       { id: 'a.splitRight', label: 'Split terminal right', icon: <SplitSquareHorizontal size={15} />, run: () => { const t = useTabStore.getState(); t.activeTabId && t.splitPane(t.activeTabId, 'h') } },
       { id: 'a.splitDown', label: 'Split terminal down', icon: <SplitSquareHorizontal size={15} />, run: () => { const t = useTabStore.getState(); t.activeTabId && t.splitPane(t.activeTabId, 'v') } },
+      { id: 'a.splitTab', label: 'Move tab to right group (side-by-side tabs)', icon: <SplitSquareHorizontal size={15} />, run: () => { const t = useTabStore.getState(); if (t.activeTabId) moveToGroup(t.activeTabId, 1) } },
+      { id: 'a.unsplitTab', label: 'Unsplit tabs', icon: <SplitSquareHorizontal size={15} />, run: () => useTabStore.getState().unsplitTabs() },
       { id: 'a.toggleSidebar', label: 'Toggle sidebar', icon: <Command size={15} />, run: () => useUiStore.getState().toggleSidebar() },
       { id: 'a.sftp', label: 'Open SFTP file manager', icon: <Code2 size={15} />, run: () => useUiStore.getState().toggleSftp() },
       { id: 'a.keyVault', label: 'Open key vault', icon: <KeyRound size={15} />, run: () => openDialog({ kind: 'keyVault' }) },

@@ -30,6 +30,7 @@ import type {
   ImportResult,
   TerminalTheme
 } from './index'
+import type { TearoffPayload } from './ui'
 
 export interface TernixApi {
   groups: {
@@ -185,6 +186,10 @@ export interface TernixApi {
     isMaximized(): Promise<boolean>
     toggleFullscreen(): void
     onMaximizeChange(cb: (maximized: boolean) => void): () => void
+    /** Tab tear-off: open a new Ternix window that adopts the given tab. */
+    openTab(payload: TearoffPayload): void
+    /** Called once on boot — returns the tab this window was opened to adopt, if any. */
+    getTearoffTab(): Promise<TearoffPayload | null>
   }
   updates: {
     check(): Promise<{ available: boolean; version?: string }>

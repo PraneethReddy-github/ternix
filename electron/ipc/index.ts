@@ -1,4 +1,3 @@
-import type { BrowserWindow } from 'electron'
 import { registerSessionHandlers } from './sessions'
 import { registerTerminalHandlers } from './terminal'
 import { registerRemoteHandlers } from './remote'
@@ -13,7 +12,7 @@ import { registerLogHandlers } from './log'
 import { registerImportExportHandlers } from './importexport'
 import { registerSystemHandlers } from './system'
 
-export function registerAllIpc(getWindow: () => BrowserWindow | null): void {
+export function registerAllIpc(): void {
   registerSessionHandlers()
   registerTerminalHandlers()
   registerRemoteHandlers()
@@ -26,5 +25,5 @@ export function registerAllIpc(getWindow: () => BrowserWindow | null): void {
   registerRecordingHandlers()
   registerLogHandlers()
   registerImportExportHandlers()
-  registerSystemHandlers(getWindow)
+  registerSystemHandlers()
 }
