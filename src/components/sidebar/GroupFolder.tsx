@@ -25,6 +25,7 @@ export function GroupFolder({
       onContextMenu={onContext}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
+        e.stopPropagation()
         const id = e.dataTransfer.getData('tx/session')
         if (id) onDropSession(Number(id))
       }}

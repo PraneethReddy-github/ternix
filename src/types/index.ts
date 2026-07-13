@@ -85,6 +85,8 @@ export interface SessionInput extends Partial<Omit<Session, 'id' | 'hasPassword'
   clearPassphrase?: boolean
   /** Transient (import only): the original SSH key file path, resolved to a vault key at commit time. Never persisted. */
   importKeyPath?: string | null
+  /** Transient (import only): the source app's folder path (e.g. `DEV` or `QA\Lab`), resolved to a group at commit time. Never persisted. */
+  importGroupPath?: string | null
 }
 
 export interface SshKey {

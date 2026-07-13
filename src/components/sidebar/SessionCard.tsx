@@ -18,12 +18,14 @@ export function SessionCard({
   session,
   depth,
   onConnect,
-  onContext
+  onContext,
+  onDropSession
 }: {
   session: Session
   depth: number
   onConnect: () => void
   onContext: (e: React.MouseEvent) => void
+  onDropSession?: (draggedId: number, targetGroupId: number | null) => void
 }) {
   const isConnected = useTabStore((s) =>
     s.tabs.some((t) => t.panes.some((p) => p.sessionId === session.id && p.state === 'connected'))
@@ -34,6 +36,12 @@ export function SessionCard({
       tabIndex={0}
       draggable
       onDragStart={(e) => e.dataTransfer.setData('tx/session', String(session.id))}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.stopPropagation()
+        const id = e.dataTransfer.getData('tx/session')
+        if (id && Number(id) !== session.id && onDropSession) onDropSession(Number(id), session.group_id)
+      }}
       onDoubleClick={onConnect}
       onKeyDown={(e) => e.key === 'Enter' && onConnect()}
       onContextMenu={onContext}

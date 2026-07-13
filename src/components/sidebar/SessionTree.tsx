@@ -38,11 +38,19 @@ export function SessionTree() {
 
   const connect = (s: Session) => connectSession(s, useTabStore)
 
+  /** Move a session between groups (null = ungrouped). name/protocol satisfy SessionInput's required fields. */
+  const moveToGroup = (sid: number, groupId: number | null) => {
+    const s = sessions.find((x) => x.id === sid)
+    if (s) updateSession(sid, { name: s.name, protocol: s.protocol, group_id: groupId })
+  }
+  const ungroup = (sid: number) => moveToGroup(sid, null)
+
   const sessionContext = (e: React.MouseEvent, s: Session) =>
     open(e, [
       { label: 'Connect', onClick: () => connect(s) },
       { separator: true },
       { label: 'Edit', onClick: () => openDialog({ kind: 'newSession', session: s }) },
+      ...(s.group_id != null ? [{ label: 'Remove from group', onClick: () => ungroup(s.id) }] : []),
       { label: 'Duplicate', onClick: () => openDialog({ kind: 'newSession', session: s, duplicate: true }) },
       { label: 'Tunnels…', onClick: () => openDialog({ kind: 'tunnels', sessionId: s.id }) },
       { label: 'View connection log', onClick: () => openDialog({ kind: 'connectionLog', sessionId: s.id }) },
@@ -100,13 +108,13 @@ export function SessionTree() {
           count={groupSessions.length}
           onToggle={() => toggle(group.id)}
           onContext={(e) => groupContext(e, group)}
-          onDropSession={(sid) => { const s = sessions.find((x) => x.id === sid); if (s) updateSession(sid, { name: s.name, protocol: s.protocol, group_id: group.id }) }}
+          onDropSession={(sid) => moveToGroup(sid, group.id)}
         />
         {!isCollapsed && (
           <div>
             {childGroups.map((cg) => renderGroup(cg, depth + 1))}
             {groupSessions.map((s) => (
-              <SessionCard key={s.id} session={s} depth={depth + 1} onConnect={() => connect(s)} onContext={(e) => sessionContext(e, s)} />
+              <SessionCard key={s.id} session={s} depth={depth + 1} onConnect={() => connect(s)} onContext={(e) => sessionContext(e, s)} onDropSession={(sid, gid) => moveToGroup(sid, gid)} />
             ))}
           </div>
         )}
@@ -156,10 +164,17 @@ export function SessionTree() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-1">
+      <div
+        className="flex-1 overflow-y-auto py-1"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          const id = e.dataTransfer.getData('tx/session')
+          if (id) ungroup(Number(id))
+        }}
+      >
         {rootGroups.map((g) => renderGroup(g, 0))}
         {ungrouped.map((s) => (
-          <SessionCard key={s.id} session={s} depth={0} onConnect={() => connect(s)} onContext={(e) => sessionContext(e, s)} />
+          <SessionCard key={s.id} session={s} depth={0} onConnect={() => connect(s)} onContext={(e) => sessionContext(e, s)} onDropSession={(sid, gid) => moveToGroup(sid, gid)} />
         ))}
         {sessions.length === 0 && (
           <div className="text-center text-[12px] text-muted mt-8 px-4">

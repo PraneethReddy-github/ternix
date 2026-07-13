@@ -155,6 +155,7 @@ export function ExportImportDialog({ onClose }: { onClose: () => void }) {
                   <span className="px-1 rounded bg-surface-2 text-accent text-[10px] uppercase">{s.protocol}</span>
                   <span className="text-text">{s.name}</span>
                   <span className="text-muted">{s.host}</span>
+                  {s.importGroupPath && <span className="ml-auto text-[11px] text-muted shrink-0">{s.importGroupPath}</span>}
                 </div>
               ))}
             </div>

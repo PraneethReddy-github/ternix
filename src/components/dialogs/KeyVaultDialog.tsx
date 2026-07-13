@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react'
-import { KeyRound, Plus, Trash2, Copy, Download, Upload, FolderSearch, Server } from 'lucide-react'
+import { KeyRound, Plus, Trash2, Copy, Download, Upload, FolderSearch, Server, Link2 } from 'lucide-react'
 import type { SshKey, KeyGenerateOptions } from '@shared/index'
 import { Modal, Field } from '@/components/ui/Modal'
 import { useUiStore } from '@/store/useUiStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { shortFingerprint } from '@/utils/sshFingerprintDisplay'
+import { SessionPickerDialog } from './SessionPickerDialog'
 
 export function KeyVaultDialog({ onClose }: { onClose: () => void }) {
   const [keys, setKeys] = useState<SshKey[]>([])
   const [mode, setMode] = useState<'list' | 'generate' | 'import'>('list')
+  const [picker, setPicker] = useState<{ key: SshKey; action: 'assign' | 'deploy' } | null>(null)
   const notify = useUiStore((s) => s.notify)
   const sessions = useSessionStore((s) => s.sessions)
+  const updateSession = useSessionStore((s) => s.updateSession)
 
   const load = () => window.ternix.keys.list().then(setKeys)
   useEffect(() => {
@@ -93,26 +96,44 @@ export function KeyVaultDialog({ onClose }: { onClose: () => void }) {
     })
   }
 
-  const deploy = async (id: number) => {
-    const ssh = sessions.filter((s) => s.protocol === 'ssh')
-    if (!ssh.length) return notify('No SSH sessions to deploy to', 'error')
-    
-    useUiStore.getState().openDialog({
-      kind: 'prompt',
-      title: 'Deploy Key',
-      label: `Deploy to which session?\n${ssh.map((s) => s.name).join(', ')}`,
-      onSubmit: async (name) => {
-        const target = ssh.find((s) => s.name === name)
-        if (!target) return notify('Session not found', 'error')
-        try {
-          notify('Deploying…', 'info')
-          await window.ternix.keys.deploy(id, target.id)
-          notify(`Key deployed to ${target.name}`, 'success')
-        } catch (e: any) {
-          notify(e.message, 'error')
-        }
+  const sshSessions = sessions.filter((s) => s.protocol === 'ssh')
+
+  /** Assign this vault key to the picked sessions locally; unpicked sessions that used it are unlinked. */
+  const applyToSessions = async (key: SshKey, ids: number[]) => {
+    const picked = new Set(ids)
+    const changed = sshSessions.filter((s) => picked.has(s.id) !== (s.ssh_key_id === key.id))
+    for (const s of changed) {
+      const use = picked.has(s.id)
+      await updateSession(s.id, {
+        name: s.name,
+        protocol: s.protocol,
+        ssh_key_id: use ? key.id : null,
+        auth_type: use ? 'key' : 'password'
+      })
+    }
+    notify(changed.length ? `"${key.name}" now used by ${picked.size} session(s)` : 'No change', 'success')
+    load()
+  }
+
+  /** Push the public key to each picked server's authorized_keys (ssh-copy-id). */
+  const deployToSessions = async (key: SshKey, ids: number[]) => {
+    if (!ids.length) return
+    notify(`Deploying to ${ids.length} server(s)…`, 'info')
+    const failed: string[] = []
+    for (const id of ids) {
+      try {
+        await window.ternix.keys.deploy(key.id, id)
+      } catch (e: any) {
+        failed.push(`${sshSessions.find((s) => s.id === id)?.name}: ${e.message}`)
       }
-    })
+    }
+    if (failed.length) notify(`Deployed to ${ids.length - failed.length}/${ids.length}. Failed — ${failed.join('; ')}`, 'error')
+    else notify(`Key deployed to ${ids.length} server(s)`, 'success')
+  }
+
+  const openPicker = (key: SshKey, action: 'assign' | 'deploy') => {
+    if (!sshSessions.length) return notify('No SSH sessions', 'error')
+    setPicker({ key, action })
   }
 
   const remove = (k: SshKey) =>
@@ -164,7 +185,8 @@ export function KeyVaultDialog({ onClose }: { onClose: () => void }) {
                 {k.usedBy ? <span className="text-[10px] text-muted ml-2">· {k.usedBy} session(s)</span> : null}
               </div>
               <button className="text-muted hover:text-text" title="Copy public key" onClick={() => copyPublic(k.id)}><Copy size={14} /></button>
-              <button className="text-muted hover:text-text" title="Deploy to server" onClick={() => deploy(k.id)}><Server size={14} /></button>
+              <button className="text-muted hover:text-text" title="Use for sessions…" onClick={() => openPicker(k, 'assign')}><Link2 size={14} /></button>
+              <button className="text-muted hover:text-text" title="Deploy to server" onClick={() => openPicker(k, 'deploy')}><Server size={14} /></button>
               <button className="text-muted hover:text-text" title="Export private key" onClick={() => exportPrivate(k.id)}><Download size={14} /></button>
               <button className="text-muted hover:text-danger" title="Delete" onClick={() => remove(k)}><Trash2 size={14} /></button>
             </div>
@@ -197,6 +219,17 @@ export function KeyVaultDialog({ onClose }: { onClose: () => void }) {
           <button className="text-[12px] text-accent mb-2" onClick={browsePem}>Browse for file…</button>
           <Field label="Passphrase" hint="If the key is encrypted"><input type="password" className="tx-input" value={importPass} onChange={(e) => setImportPass(e.target.value)} /></Field>
         </div>
+      )}
+
+      {picker && (
+        <SessionPickerDialog
+          title={picker.action === 'assign' ? `Use "${picker.key.name}" for sessions` : `Deploy "${picker.key.name}" to servers`}
+          sessions={sshSessions}
+          preselected={picker.action === 'assign' ? sshSessions.filter((s) => s.ssh_key_id === picker.key.id).map((s) => s.id) : []}
+          applyLabel={picker.action === 'assign' ? 'Apply' : 'Deploy'}
+          onApply={(ids) => (picker.action === 'assign' ? applyToSessions(picker.key, ids) : deployToSessions(picker.key, ids))}
+          onClose={() => setPicker(null)}
+        />
       )}
     </Modal>
   )

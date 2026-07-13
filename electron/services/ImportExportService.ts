@@ -1,4 +1,5 @@
 import os from 'node:os'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AuthType, ImportKeyRef, ImportResult, ImportSource, ExportTarget, SessionInput } from '@shared/index'
 import { sessionsRepo, groupsRepo, snippetsRepo, tunnelsRepo, keysRepo } from '../db/repo'
@@ -54,12 +55,13 @@ class ImportExportServiceImpl {
     let n = 0
     const existing = sessionsRepo.list()
     for (const s of sessions) {
-      const { importKeyPath, ...input } = s
+      const { importKeyPath, importGroupPath, ...input } = s
       if (importKeyPath) {
         const keyId = keyIdByPath.get(importKeyPath) ?? null
         if (keyId) input.ssh_key_id = keyId
         else input.notes = [input.notes, `Requires key: ${importKeyPath}`].filter(Boolean).join('\n')
       }
+      if (importGroupPath) input.group_id = this.resolveGroupPath(importGroupPath)
       const isDuplicate = existing.some(e =>
         e.name === input.name &&
         e.protocol === input.protocol &&
@@ -74,6 +76,19 @@ class ImportExportServiceImpl {
     return n
   }
 
+  /**
+   * Map a source app's folder path (`DEV`, or nested `QA\Lab`) to a group id, creating each
+   * missing level and reusing any group of the same name already under that parent.
+   */
+  private resolveGroupPath(path: string): number | null {
+    let parentId: number | null = null
+    for (const name of path.split(/[/\\]/).map((p) => p.trim()).filter(Boolean)) {
+      const match = groupsRepo.list().find((g) => g.name === name && g.parent_id === parentId)
+      parentId = match ? match.id : groupsRepo.create({ name, parent_id: parentId }).id
+    }
+    return parentId
+  }
+
   /** Inspect a located key file (Phase 2) so the UI can update its status after the user picks it. */
   inspectKey(absPath: string): { encrypted: boolean; fingerprint: string | null } | null {
     return KeyService.inspectKeyFile(absPath)
@@ -85,8 +100,18 @@ class ImportExportServiceImpl {
     return { auth_type: 'key', importKeyPath: keyPath }
   }
 
-  /** Strip a `file://` scheme and expand a leading `~` so the path can be read locally. */
+  /**
+   * Resolve an imported key reference to a readable local path: strip `file://`, expand `~`
+   * and MobaXterm's `_ProfileDir_` macro, and fall back to looking for the same filename in
+   * the usual places. Returns the first candidate that exists, else the literal path — in
+   * which case the key shows as "missing" and the user locates it once in the import preview.
+   */
   private normalizeKeyPath(raw: string): string {
+    const candidates = this.keyPathCandidates(raw)
+    return candidates.find((p) => existsSync(p)) ?? candidates[0]
+  }
+
+  private keyPathCandidates(raw: string): string[] {
     let p = raw.trim()
     if (p.startsWith('file://')) {
       p = p.slice('file://'.length)
@@ -97,7 +122,21 @@ class ImportExportServiceImpl {
       }
     }
     if (p === '~' || p.startsWith('~/') || p.startsWith('~\\')) p = join(os.homedir(), p.slice(1))
-    return p
+
+    const home = os.homedir()
+    const out: string[] = []
+    const macro = p.match(/^_ProfileDir_[/\\](.*)$/i)
+    if (macro) {
+      // MobaXterm's profile dir isn't recorded in the export; try where it usually lives.
+      const rel = macro[1].replace(/\\/g, '/')
+      out.push(join(home, 'Documents', 'MobaXterm', rel), join(home, rel), join(home, 'Documents', rel))
+    } else {
+      out.push(p)
+    }
+    // Last resort: the bare filename wherever keys normally sit.
+    const base = this.keyName(p)
+    out.push(join(home, '.ssh', base), join(home, 'Downloads', base))
+    return out
   }
 
   /** The basename of a key path, used as the vault key's display name. */
@@ -277,46 +316,97 @@ class ImportExportServiceImpl {
   }
 
   // ---- MobaXterm .mxtsessions ----
+  /**
+   * Format: each `[Bookmarks*]` section is one folder (its name is the section's `SubRep=`,
+   * blank for the root; nested folders are `Parent\Child`), and each entry inside it is
+   *   `Name=#<icon>#<type>%host%port%user%…%<privateKey @ 14>%…#MobaFont%<appearance…>`
+   *
+   * Note the FIRST number is the icon, which the user can change freely — the protocol is the
+   * SECOND one. The `#MobaFont` tail is terminal styling, dropped before parsing so it can't
+   * be mistaken for a session field.
+   */
   private fromMobaXterm(text: string): ImportResult {
+    // MobaXterm session types. The ones with no Ternix equivalent (FTP 6, SFTP 7, Browser 11,
+    // …) map to null and are skipped rather than imported as bogus SSH boxes.
+    const PROTO: Record<string, SessionInput['protocol'] | null> = {
+      '0': 'ssh',
+      '4': 'rdp',
+      '5': 'vnc',
+      '6': null,
+      '7': null,
+      '11': null
+    }
     const sessions: SessionInput[] = []
-    const lines = text.split(/\r?\n/).filter((l) => l.trim())
     let inBookmarks = false
-    for (const line of lines) {
-      if (line.startsWith('[')) {
-        inBookmarks = true
+    let groupPath = ''
+    let skipped = 0
+
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      if (trimmed.startsWith('[')) {
+        // A new section resets the folder; `SubRep=` on the next line names it.
+        inBookmarks = /^\[Bookmarks/i.test(trimmed)
+        groupPath = ''
         continue
       }
-      if (!inBookmarks || !line.includes('=')) continue
-      
-      const idx = line.indexOf('=')
-      const name = line.slice(0, idx)
-      const valueStr = line.slice(idx + 1)
-      const parts = valueStr.split('%')
-      
-      if (parts.length > 5) {
-        // usually: Protocol%Host%Port%Username%...
-        // protocol like #109#0 indicates SSH, #105#0 indicates Telnet etc.
-        // Actually MobaXterm protocol identifiers can vary, but typically the first field indicates it indirectly, or it's just based on port.
-        // Let's do a basic parse: we assume Host is parts[1], Port is parts[2], Username is parts[3]
-        const host = parts[1] || ''
-        const port = parseInt(parts[2], 10) || 22
-        const username = parts[3] || ''
-        
-        const keyFile = parts.find((p) => p.toLowerCase().endsWith('.ppk') || p.toLowerCase().endsWith('.pem') || p.includes('.ssh/'))
-        const kf = this.keyFields(keyFile)
+      if (!inBookmarks) continue
 
-        sessions.push({
-          name,
-          protocol: port === 23 ? 'telnet' : port === 3389 ? 'rdp' : 'ssh',
-          host,
-          port,
-          username,
-          auth_type: kf.auth_type,
-          importKeyPath: kf.importKeyPath
-        })
+      const eq = trimmed.indexOf('=')
+      if (eq < 0) continue
+      const name = trimmed.slice(0, eq)
+      const value = trimmed.slice(eq + 1)
+
+      // Section metadata, not a session.
+      if (name === 'SubRep') {
+        groupPath = value
+        continue
       }
+      if (name === 'ImgNum') continue
+
+      const params = value.split('#MobaFont')[0].split('%')
+      if (params.length < 5) continue
+
+      const type = params[0].match(/^#\d+#(\d+)/)?.[1]
+      const host = params[1] || ''
+      const port = parseInt(params[2], 10) || 22
+      // Trust the session type when we know it (a session's port can be anything). For types we
+      // haven't mapped — Telnet and Serial have no documented code — guess from the port.
+      const protocol =
+        type !== undefined && type in PROTO
+          ? PROTO[type]
+          : port === 23
+            ? 'telnet'
+            : port === 3389
+              ? 'rdp'
+              : port === 5900
+                ? 'vnc'
+                : port === 22
+                  ? 'ssh'
+                  : null
+      if (!protocol) {
+        skipped++
+        continue
+      }
+
+      // Field 14 is the private key. Fall back to a path-shaped scan for older/odd exports.
+      const keyFile =
+        params[14]?.trim() ||
+        params.slice(4).find((p) => /\.(ppk|pem|key)$/i.test(p) || p.includes('.ssh/') || p.includes('_ProfileDir_'))
+      const kf = this.keyFields(keyFile || undefined)
+
+      sessions.push({
+        name,
+        protocol,
+        host,
+        port,
+        username: params[3] || '',
+        auth_type: kf.auth_type,
+        importKeyPath: kf.importKeyPath,
+        importGroupPath: groupPath || undefined
+      })
     }
-    return { imported: 0, skipped: 0, sessions }
+    return { imported: 0, skipped, sessions }
   }
 
   // ---- Tabby config.yaml ----
