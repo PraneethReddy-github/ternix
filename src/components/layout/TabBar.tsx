@@ -128,6 +128,11 @@ export function TabBar({ group = 0 }: { group?: 0 | 1 }) {
         const id = tabDrag.id
         if (id) moveToGroup(id, group)
       }}
+      onDoubleClick={(e) => {
+        if (!(e.target as HTMLElement).closest('[data-tab-id]')) {
+          handleNewTab()
+        }
+      }}
     >
       {overflow.left && (
         <button
@@ -157,30 +162,20 @@ export function TabBar({ group = 0 }: { group?: 0 | 1 }) {
               onContext={(e) => {
                 const st = useTabStore.getState()
                 open(e, [
-                  { label: 'Open in new tab', onClick: () => openSessionInNewTab(tab) },
+                  { label: 'Duplicate tab', onClick: () => openSessionInNewTab(tab) },
                   { label: 'Rename tab', onClick: () => promptRename(tab) },
-                  {
-                    label: 'Duplicate session',
-                    onClick: () => {
-                      const p = tab.panes.find((x) => x.id === tab.activePaneId) ?? tab.panes[0];
-                      if (!p?.sessionId) return useUiStore.getState().notify('This tab is not linked to a saved session', 'error');
-                      const s = useSessionStore.getState().sessions.find((x) => x.id === p.sessionId);
-                      if (s) useUiStore.getState().openDialog({ kind: 'newSession', session: s, duplicate: true });
-                      else useUiStore.getState().notify('Session not found', 'error');
-                    }
-                  },
                   { label: 'Split right', onClick: () => useTabStore.getState().splitPane(tab.id, 'h') },
                   { label: 'Split down', onClick: () => useTabStore.getState().splitPane(tab.id, 'v') },
                   { separator: true },
                   ...((tab.group ?? 0) === 1
                     ? [
-                        { label: 'Move tab to left group', onClick: () => moveToGroup(tab.id, 0) },
-                        { label: 'Unsplit tabs', onClick: () => useTabStore.getState().unsplitTabs() }
-                      ]
+                      { label: 'Move tab to left group', onClick: () => moveToGroup(tab.id, 0) },
+                      { label: 'Unsplit tabs', onClick: () => useTabStore.getState().unsplitTabs() }
+                    ]
                     : [
-                        { label: 'Move tab to right group', onClick: () => moveToGroup(tab.id, 1) },
-                        ...(split ? [{ label: 'Unsplit tabs', onClick: () => useTabStore.getState().unsplitTabs() }] : [])
-                      ]),
+                      { label: 'Move tab to right group', onClick: () => moveToGroup(tab.id, 1) },
+                      ...(split ? [{ label: 'Unsplit tabs', onClick: () => useTabStore.getState().unsplitTabs() }] : [])
+                    ]),
                   { label: 'Move tab to new window', onClick: () => tearOffTab(tab), disabled: st.tabs.length < 2 },
                   { separator: true },
                   { label: 'Close tab', onClick: () => closeTab(tab.id) },

@@ -59,7 +59,7 @@ It ships as a native app for Linux (AppImage/deb) and Windows (NSIS installer/po
 - Up to **6 panes per tab**, tiled as at most **2 rows × 3 columns**. Panes share space equally.
 - Split **right** (`Ctrl+Shift+D`) or **down** (`Ctrl+Shift+E`); a new pane inherits the active pane's session
 - Tabs: drag to reorder, middle-click to close, rename, `Ctrl+1`…`Ctrl+9` to jump
-- Tab context menu: open in new tab, rename, duplicate session, split right/down, close tab / others / to the right
+- Tab context menu: duplicate tab, rename, split right/down, close tab / others / to the right
 - **Restore last session** on startup, or open a blank tab, or open the session picker
 - **Auto-reconnect** with configurable retries and delay; `Ctrl+R` to reconnect a dropped pane manually
 - The active pane is outlined when a tab holds more than one
