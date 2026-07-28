@@ -4,13 +4,14 @@ import { timeAgo } from '@/utils/formatDuration'
 import { cn } from '@/utils/cn'
 import { useTabStore } from '@/store/useTabStore'
 
-export function connectSession(session: Session, useTabStoreApi: any) {
+export function connectSession(session: Session, useTabStoreApi: any, opts?: { after?: string; group?: 0 | 1 }) {
   useTabStoreApi.getState().newTab({
     sessionId: session.id,
     protocol: session.protocol,
     title: session.name,
     host: session.host,
-    color: session.color
+    color: session.color,
+    ...opts
   })
 }
 

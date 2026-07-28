@@ -13,7 +13,9 @@ import { VncBridgeService } from './services/VncBridgeService'
 import { RdpGatewayService } from './services/RdpGatewayService'
 import { Bus } from './services/bus'
 import { settingsRepo } from './db/repo'
+import { MobileService } from './services/MobileService'
 import { registerAllIpc } from './ipc'
+import { mobilePort } from './ipc/mobile'
 import { handleE, on } from './ipc/util'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -130,6 +132,13 @@ app.whenReady().then(async () => {
   registerWindowIpc()
   createWindow()
 
+  // Phone access is opt-in and off by default — it opens a listening socket.
+  if (settingsRepo.get('mobile.enabled') === 'true') {
+    MobileService.start(mobilePort()).catch(() => {
+      /* surfaced in Settings → Phone via mobile:status */
+    })
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -140,6 +149,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  MobileService.stop()
   ConnectionManager.killAll()
   VncBridgeService.closeAll()
   RdpGatewayService.closeAll()

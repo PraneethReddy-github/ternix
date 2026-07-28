@@ -52,6 +52,8 @@ interface NewTabOpts {
   color?: string | null
   /** Which split group to open in. Defaults to the focused tab's group. */
   group?: 0 | 1
+  /** Insert right after this tab instead of at the end of the strip. */
+  after?: string
 }
 
 interface TabState {
@@ -222,7 +224,11 @@ export const useTabStore = create<TabState>((set, get) => ({
       broadcast: false,
       group: g
     }
-    set((st) => ({ tabs: [...st.tabs, tab], activeTabId: tab.id, groupActive: { ...st.groupActive, [g]: tab.id } }))
+    set((st) => {
+      const at = opts?.after ? st.tabs.findIndex((t) => t.id === opts.after) : -1
+      const tabs = at < 0 ? [...st.tabs, tab] : [...st.tabs.slice(0, at + 1), tab, ...st.tabs.slice(at + 1)]
+      return { tabs, activeTabId: tab.id, groupActive: { ...st.groupActive, [g]: tab.id } }
+    })
     return pane.id
   },
 

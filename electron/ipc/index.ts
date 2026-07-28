@@ -11,6 +11,7 @@ import { registerRecordingHandlers } from './recordings'
 import { registerLogHandlers } from './log'
 import { registerImportExportHandlers } from './importexport'
 import { registerSystemHandlers } from './system'
+import { registerMobileHandlers } from './mobile'
 
 export function registerAllIpc(): void {
   registerSessionHandlers()
@@ -26,4 +27,5 @@ export function registerAllIpc(): void {
   registerLogHandlers()
   registerImportExportHandlers()
   registerSystemHandlers()
+  registerMobileHandlers()
 }

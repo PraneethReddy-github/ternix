@@ -6,10 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ternix — The Terminal You'll Ever Need</title>
   <meta name="description"
-    content="Ternix is a free, open-source terminal for SSH, Telnet, Serial, RDP, and VNC. Session manager, dual-pane SFTP, port forwarding, session recording, an encrypted SSH key vault, and a live system monitor. Download for Windows and Linux." />
+    content="Ternix is a free, open-source terminal for SSH, Telnet, Serial, RDP, and VNC. Session manager, dual-pane SFTP, port forwarding, session recording, an encrypted SSH key vault, a live system monitor, and end-to-end encrypted access from your phone. Download for Windows and Linux." />
   <meta property="og:title" content="Ternix — The Terminal You'll Ever Need" />
   <meta property="og:description"
-    content="SSH, Telnet, Serial, RDP, VNC. Sessions, splits, SFTP, tunnels, recordings, and an encrypted key vault. Built for engineers who live in the shell." />
+    content="SSH, Telnet, Serial, RDP, VNC. Sessions, splits, SFTP, tunnels, recordings, an encrypted key vault, and your terminal on your phone. Built for engineers who live in the shell." />
   <meta property="og:type" content="website" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -57,7 +57,8 @@
   <section class="hero" id="hero">
     <div class="hero-inner">
       <h1>The terminal you actually<br>want to use.</h1>
-      <p class="hero-sub">SSH, Telnet, Serial, RDP, VNC. Sessions, splits, recordings.<br>Built for engineers who live in the
+      <p class="hero-sub">SSH, Telnet, Serial, RDP, VNC. Sessions, splits, recordings.<br>Built for engineers who live
+        in the
         shell.</p>
       <div class="hero-buttons">
         <a href="#download" class="btn-download" id="btn-hero-windows">
@@ -100,6 +101,7 @@
   <section class="features" id="features">
     <div class="features-inner">
       <div class="section-eyebrow">What Ternix does</div>
+      <div class="feature-group">Connect</div>
       <div class="feature-row">
         <div class="feature-name">SSH</div>
         <div class="feature-desc">Password, key, agent, and keyboard-interactive auth. Multi-hop jump hosts and host-key
@@ -118,6 +120,22 @@
         <div class="feature-desc">Graphical sessions rendered right inside a pane, with native-client fallback</div>
       </div>
       <div class="feature-row">
+        <div class="feature-name">Port Forwarding</div>
+        <div class="feature-desc">Local, remote, and dynamic SOCKS5 tunnels with live byte counters</div>
+      </div>
+      <div class="feature-group">Away from the desk</div>
+      <div class="feature-row">
+        <div class="feature-name">Phone Access</div>
+        <div class="feature-desc">Scan a QR and your phone opens a terminal in its browser — its own sessions, or
+          mirroring one already running on your desktop. Over your Wi-Fi, or through a tunnel from anywhere</div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-name">Encrypted End to End</div>
+        <div class="feature-desc">The pairing key travels in the QR, never over the network. Every keystroke is sealed
+          with a key only your two devices hold — including from the tunnel that carries it</div>
+      </div>
+      <div class="feature-group">Files</div>
+      <div class="feature-row">
         <div class="feature-name">SFTP Dual-Pane Manager</div>
         <div class="feature-desc">Drag between panes, or drop files straight from your desktop to upload</div>
       </div>
@@ -125,6 +143,7 @@
         <div class="feature-name">Smart Transfers</div>
         <div class="feature-desc">Live speed and ETA. Pause, resume, or cancel one file without stopping the rest</div>
       </div>
+      <div class="feature-group">Keys &amp; secrets</div>
       <div class="feature-row">
         <div class="feature-name">SSH Key Vault</div>
         <div class="feature-desc">Generate, import, and deploy keys — <code>ssh-copy-id</code> without leaving the app
@@ -135,9 +154,16 @@
         <div class="feature-desc">Credentials sealed with AES-256-GCM. Optional master password. Nothing in the cloud
         </div>
       </div>
+      <div class="feature-group">Workspace</div>
       <div class="feature-row">
-        <div class="feature-name">Port Forwarding</div>
-        <div class="feature-desc">Local, remote, and dynamic SOCKS5 tunnels with live byte counters</div>
+        <div class="feature-name">Split Panes &amp; Broadcast</div>
+        <div class="feature-desc">Up to six panes per tab, resized by dragging the dividers. Type once, send to every
+          one of them</div>
+      </div>
+      <div class="feature-row">
+        <div class="feature-name">Tabs &amp; Windows</div>
+        <div class="feature-desc">Tear a tab into its own window without dropping the connection, or split the tab strip
+          into two side-by-side groups</div>
       </div>
       <div class="feature-row">
         <div class="feature-name">Session Recording</div>
@@ -148,10 +174,6 @@
         <div class="feature-desc">CPU, memory, disk, network, and temperatures — for this machine or the server</div>
       </div>
       <div class="feature-row">
-        <div class="feature-name">Split Panes &amp; Broadcast</div>
-        <div class="feature-desc">Up to six panes per tab. Type once, send to every one of them</div>
-      </div>
-      <div class="feature-row">
         <div class="feature-name">Command Palette</div>
         <div class="feature-desc">Ctrl+P to jump to any saved session or action</div>
       </div>
@@ -160,6 +182,7 @@
         <div class="feature-desc">Reusable commands with <code>${VAR}</code> prompts, global or scoped to one session
         </div>
       </div>
+      <div class="feature-group">Make it yours</div>
       <div class="feature-row">
         <div class="feature-name">Bring Your Sessions</div>
         <div class="feature-desc">Import from OpenSSH config, PuTTY, WinSCP, MobaXterm, Tabby, or CSV</div>
@@ -205,7 +228,7 @@
             </div>
           </div>
           <div class="download-options" id="windows-options"></div>
-          
+
 
         </div>
         <!-- Linux -->

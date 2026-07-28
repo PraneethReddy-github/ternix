@@ -342,3 +342,47 @@ export interface ImportResult {
   sessions: SessionInput[]
   keyRefs?: ImportKeyRef[] // distinct key files referenced by the parsed sessions
 }
+
+// ---- Phone access ----
+
+/** A phone that has completed pairing. The bearer token itself is never stored in the clear. */
+export interface MobileDevice {
+  id: string
+  name: string
+  createdAt: number
+  lastSeen: number
+}
+
+export interface MobileStatus {
+  running: boolean
+  port: number
+  /** One entry per non-loopback IPv4 address the phone could reach on the same network. */
+  lanUrls: string[]
+  tunnelUrl: string | null
+  tunnelError: string | null
+  tunnelRunning: boolean
+  /** True while the tunnel is being brought up — cloudflared install included. */
+  tunnelStarting: boolean
+  devices: MobileDevice[]
+  clients: number
+}
+
+/** State of the `cloudflared` binary that backs the HTTPS tunnel. */
+export interface CloudflaredStatus {
+  installed: boolean
+  /** Absolute path to the binary in use, or null when none was found. */
+  path: string | null
+  /** True when the binary is the copy Ternix downloaded rather than a system one. */
+  managed: boolean
+  /** False on platforms Cloudflare publishes no build for. */
+  supported: boolean
+  installing: boolean
+  /** Download progress 0–100 while `installing`. */
+  progress: number
+}
+
+/** A one-tap command the phone shows above the keyboard. Stored as JSON in settings. */
+export interface MobileQuickCommand {
+  label: string
+  command: string
+}

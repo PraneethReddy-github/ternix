@@ -414,6 +414,35 @@ a {
   margin-bottom: 48px;
 }
 
+.feature-group {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  padding: 44px 0 14px;
+  border-top: 1px solid var(--border);
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.5s var(--ease-out), transform 0.5s var(--ease-out);
+}
+
+/* The eyebrow already spaces the section off; the first group must not stack onto it. */
+.section-eyebrow + .feature-group {
+  padding-top: 0;
+  border-top: none;
+}
+
+.feature-group.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* The label already carries the group's top rule — the first row must not repeat it. */
+.feature-group + .feature-row {
+  border-top: none;
+}
+
 .feature-row {
   display: flex;
   flex-direction: column;

@@ -16,6 +16,8 @@ import type {
   SpawnResult,
   SftpEntry,
   TransferProgress,
+  MobileStatus,
+  CloudflaredStatus,
   VaultStatus,
   HostKeyPrompt,
   HostKeyDecision,
@@ -199,6 +201,23 @@ export interface TernixApi {
   }
   stats: {
     fetch(tabId: string | null): Promise<any>
+  }
+  mobile: {
+    status(): Promise<MobileStatus>
+    start(port: number): Promise<MobileStatus>
+    stop(): Promise<MobileStatus>
+    /** Mint a single-use 256-bit pairing secret for the QR, invalidating any previous one. */
+    pairing(): Promise<{ secret: string; expiresAt: number }>
+    clearPairing(): Promise<void>
+    revokeDevice(id: string): Promise<MobileStatus>
+    startTunnel(): Promise<MobileStatus>
+    stopTunnel(): Promise<MobileStatus>
+    onStatus(cb: (s: MobileStatus) => void): () => void
+    cloudflaredStatus(): Promise<CloudflaredStatus>
+    /** Download the platform's cloudflared build into the app data dir. */
+    installCloudflared(): Promise<CloudflaredStatus>
+    uninstallCloudflared(): Promise<CloudflaredStatus>
+    onCloudflared(cb: (s: CloudflaredStatus) => void): () => void
   }
 }
 

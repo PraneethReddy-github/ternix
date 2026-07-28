@@ -188,6 +188,21 @@ const api: TernixApi = {
   },
   stats: {
     fetch: (tabId: string | null) => invoke('stats:fetch', tabId)
+  },
+  mobile: {
+    status: () => invoke('mobile:status'),
+    start: (port) => invoke('mobile:start', port),
+    stop: () => invoke('mobile:stop'),
+    pairing: () => invoke('mobile:pairing'),
+    clearPairing: () => invoke('mobile:clearPairing'),
+    revokeDevice: (id) => invoke('mobile:revokeDevice', id),
+    startTunnel: () => invoke('mobile:startTunnel'),
+    stopTunnel: () => invoke('mobile:stopTunnel'),
+    onStatus: (cb) => subscribe('mobile:status', cb),
+    cloudflaredStatus: () => invoke('mobile:cloudflaredStatus'),
+    installCloudflared: () => invoke('mobile:installCloudflared'),
+    uninstallCloudflared: () => invoke('mobile:uninstallCloudflared'),
+    onCloudflared: (cb) => subscribe('mobile:cloudflared', cb)
   }
 }
 

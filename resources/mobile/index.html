@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0d1117" />
+<title>Ternix</title>
+<link rel="stylesheet" href="/xterm.css" />
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #21262d;
+    --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+    --danger: #f85149; --ok: #3fb950; --warn: #d29922;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none; overflow: hidden;
+  }
+  #app { display: flex; flex-direction: column; height: 100dvh; }
+  .screen { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .screen.on { display: flex; }
+
+  .bar {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+    background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+  .bar .title { font-weight: 600; font-size: 15px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar button { padding: 8px 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: background .2s; }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--danger); }
+
+  .body { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p.sub { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
+
+  input[type=text], input[type=tel] {
+    width: 100%; padding: 14px; font-size: 17px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 10px; color: var(--text);
+  }
+  button {
+    font: inherit; color: var(--text); background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 10px; padding: 13px 16px; cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; width: 100%; }
+  button:active { opacity: .7; }
+  button[disabled] { opacity: .5; }
+
+  .err { color: var(--danger); font-size: 13px; margin-top: 12px; min-height: 18px; }
+  .group { margin-bottom: 22px; }
+  .group h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); margin: 0 0 8px; font-weight: 600;
+  }
+
+  /* A row is a flex container so the close button sits outside the tappable body. */
+  .row {
+    display: flex; align-items: stretch; gap: 8px; margin-bottom: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  }
+  .row .open {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left;
+    background: none; border: 0; border-radius: 0; padding: 13px 14px;
+  }
+  .row .meta { flex: 1; min-width: 0; }
+  .row .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .hint { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row.blocked { opacity: .55; }
+  .row.blocked .hint { color: var(--warn); }
+  .row .x {
+    background: none; border: 0; border-left: 1px solid var(--border); border-radius: 0;
+    color: var(--muted); padding: 0 16px; font-size: 20px; line-height: 1;
+  }
+  .row .x:active { color: var(--danger); }
+  .tag {
+    font-size: 10px; text-transform: uppercase; padding: 3px 6px; border-radius: 5px;
+    background: var(--surface2); color: var(--muted); letter-spacing: .04em; flex-shrink: 0;
+  }
+  .tag.live { background: rgba(63,185,80,.15); color: var(--ok); }
+  .empty { color: var(--muted); font-size: 13px; padding: 4px 0 12px; }
+
+  /* --- terminal --- */
+  #termScreen { background: #000; }
+  #termWrap { flex: 1; min-height: 0; overflow: hidden; position: relative; }
+  /* Only a mirrored desktop pane can be wider than the phone, so only it may pan. */
+  #termWrap.pan { overflow: auto; -webkit-overflow-scrolling: touch; }
+  #term { position: absolute; top: 0; left: 0; }
+  #term.fitmode { width: 100%; height: 100%; position: relative; }
+  /* xterm's own viewport scrollbar defaults to the platform's light chrome on a black pane. */
+  #termScreen ::-webkit-scrollbar, #termWrap::-webkit-scrollbar { width: 6px; height: 6px; }
+  #termScreen ::-webkit-scrollbar-thumb, #termWrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  #termScreen ::-webkit-scrollbar-track, #termWrap::-webkit-scrollbar-track { background: transparent; }
+  #termScreen .xterm-viewport { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+  #keys {
+    flex-shrink: 0; background: var(--surface); border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+    display: flex; align-items: stretch;
+  }
+  /* Pinned so the command sheet is always one tap away, however far the row is scrolled. */
+  #cmdBtn {
+    flex-shrink: 0; border: 0; border-right: 1px solid var(--border); border-radius: 0;
+    background: var(--surface2); padding: 0 14px; font-size: 17px; color: var(--accent);
+  }
+  #cmdBtn:active { background: var(--accent); color: #fff; }
+  .krow { display: flex; gap: 5px; padding: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+  .krow::-webkit-scrollbar { display: none; }
+  .key {
+    padding: 9px 11px; font-size: 13px; font-family: ui-monospace, monospace;
+    border-radius: 7px; background: var(--surface2); border: 1px solid var(--border);
+    flex-shrink: 0; min-width: 38px; text-align: center; user-select: none;
+  }
+  .key.armed { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .banner { padding: 8px 12px; font-size: 12px; background: var(--surface2); color: var(--muted); text-align: center; }
+  .banner.warn { background: rgba(248,81,73,.15); color: var(--danger); }
+
+  /* --- command sheet --- */
+  #sheet {
+    position: fixed; inset: 0; z-index: 20; display: none;
+    background: rgba(0,0,0,.55);
+  }
+  #sheet.on { display: block; }
+  #sheetPanel {
+    position: absolute; left: 0; right: 0; bottom: 0; max-height: 70%;
+    background: var(--surface); border-top: 1px solid var(--border);
+    border-radius: 14px 14px 0 0; display: flex; flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  #sheetTabs { display: flex; gap: 4px; padding: 10px 12px 0; border-bottom: 1px solid var(--border); }
+  .stab {
+    background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+    padding: 8px 12px; font-size: 13px; color: var(--muted); font-weight: 600;
+  }
+  .stab.on { color: var(--accent); border-bottom-color: var(--accent); }
+  #sheetClose { margin-left: auto; background: none; border: 0; color: var(--muted); padding: 6px 10px; font-size: 18px; }
+  #sheetBody { overflow-y: auto; padding: 10px 12px 16px; -webkit-overflow-scrolling: touch; }
+  .cmd {
+    display: block; width: 100%; text-align: left; margin-bottom: 7px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px;
+  }
+  .cmd .label { font-weight: 500; font-size: 14px; }
+  .cmd code {
+    display: block; font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted);
+    margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ---------------- pair ---------------- -->
+  <section id="pairScreen" class="screen on">
+    <div class="bar"><div class="title">Ternix</div></div>
+    <div class="body">
+      <h1>Link this phone</h1>
+      <p class="sub">
+        On your computer, open Ternix → Settings → Phone and scan the QR code with your
+        camera. Opening the link it offers does the rest — there is nothing to type.
+      </p>
+      <p class="sub" id="pairHint"></p>
+      <div id="pairErr" class="err"></div>
+    </div>
+  </section>
+
+  <!-- ---------------- picker ---------------- -->
+  <section id="pickScreen" class="screen">
+    <div class="bar">
+      <span id="connDot" class="dot"></span>
+      <div class="title">Sessions</div>
+      <button id="refreshBtn">Refresh</button>
+    </div>
+    <div class="body" id="pickBody"></div>
+  </section>
+
+  <!-- ---------------- terminal ---------------- -->
+  <section id="termScreen" class="screen">
+    <div class="bar">
+      <button id="backBtn">‹ Back</button>
+      <div class="title" id="termTitle">—</div>
+      <button id="closeBtn" title="Close this session">✕</button>
+    </div>
+    <div id="termBanner" class="banner" hidden></div>
+    <div id="termWrap"><div id="term"></div></div>
+    <div id="keys">
+      <button id="cmdBtn" title="Commands">⌘</button>
+      <div class="krow">
+        <div class="key" data-k="esc">esc</div>
+        <div class="key" data-mod="ctrl">ctrl</div>
+        <div class="key" data-mod="alt">alt</div>
+        <div class="key" data-k="tab">tab</div>
+        <div class="key" data-k="up">↑</div>
+        <div class="key" data-k="down">↓</div>
+        <div class="key" data-k="left">←</div>
+        <div class="key" data-k="right">→</div>
+        <div class="key" data-ctrl="c">^C</div>
+        <div class="key" data-ctrl="d">^D</div>
+        <div class="key" data-ctrl="z">^Z</div>
+        <div class="key" data-send="|">|</div>
+        <div class="key" data-send="~">~</div>
+        <div class="key" data-send="/">/</div>
+        <div class="key" data-send="\">\</div>
+        <div class="key" data-send="-">-</div>
+        <div class="key" data-send="_">_</div>
+        <div class="key" data-send="$">$</div>
+        <div class="key" data-send="*">*</div>
+        <div class="key" data-send="&quot;">"</div>
+        <div class="key" data-send="'">'</div>
+        <div class="key" data-send="`">`</div>
+        <div class="key" data-k="home">home</div>
+        <div class="key" data-k="end">end</div>
+        <div class="key" data-k="pgup">pgup</div>
+        <div class="key" data-k="pgdn">pgdn</div>
+        <div class="key" data-k="kbd">⌨</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ---------------- command sheet ---------------- -->
+<div id="sheet">
+  <div id="sheetPanel">
+    <div id="sheetTabs">
+      <button class="stab on" data-tab="quick">Quick</button>
+      <button class="stab" data-tab="snippets">Snippets</button>
+      <button id="sheetClose">✕</button>
+    </div>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
+<script src="/xterm.js"></script>
+<script src="/addon-fit.js"></script>
+<script src="/nacl.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var KEY_KEY = 'ternix.key';
+  var $ = function (id) { return document.getElementById(id); };
+
+  // The device link key, base64. Proves which phone this is, and nothing else travels
+  // in the clear. crypto.subtle is unavailable here — a LAN address is never a secure
+  // origin — so the sealing below runs on tweetnacl instead.
+  var deviceKey = localStorage.getItem(KEY_KEY);
+  var sessionKey = null;   // per-connection key, set by the handshake
+  var ws = null, term = null, fit = null;
+  var pane = null;          // { id, owned, cols, rows, sessionId }
+  var wantPane = null;      // pane to re-attach to after a reconnect
+  var mods = { ctrl: false, alt: false };
+  var retry = 0, retryTimer = null;
+  var catalog = { sessions: [], panes: [], quick: [], snippets: [] };
+  var sheetTab = 'quick';
+
+  function show(id) {
+    ['pairScreen', 'pickScreen', 'termScreen'].forEach(function (s) {
+      $(s).classList.toggle('on', s === id);
+    });
+  }
+
+  // ------------------------------------------------------------ crypto
+
+  function b64(u8) {
+    var s = '';
+    for (var i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return btoa(s);
+  }
+
+  function unb64(s) {
+    var raw = atob(s), u = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) u[i] = raw.charCodeAt(i);
+    return u;
+  }
+
+  /** The pairing secret arrives base64url out of the QR's fragment. */
+  function unb64url(s) {
+    var t = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (t.length % 4) t += '=';
+    return unb64(t);
+  }
+
+  /** Seal a value under `key`. Mirrors electron/services/mobileCrypto.ts exactly. */
+  function seal(value, key) {
+    var nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+    var box = nacl.secretbox(new TextEncoder().encode(JSON.stringify(value)), nonce, key);
+    return b64(nonce) + '.' + b64(box);
+  }
+
+  /** Open a sealed frame. Null on tampering, wrong key, or anything malformed. */
+  function unseal(frame, key) {
+    var dot = frame.indexOf('.');
+    if (dot < 0) return null;
+    try {
+      var nonce = unb64(frame.slice(0, dot));
+      var box = unb64(frame.slice(dot + 1));
+      if (nonce.length !== nacl.secretbox.nonceLength) return null;
+      var plain = nacl.secretbox.open(box, nonce, key);
+      return plain ? JSON.parse(new TextDecoder().decode(plain)) : null;
+    } catch (e) { return null; }
+  }
+
+  // ------------------------------------------------------------ pairing
+
+  /**
+   * Tailor the pairing hint to how this page was reached. Cloudflare serves the tunnel over
+   * HTTPS and a LAN address is always plain HTTP, so the protocol alone says which it is —
+   * and the two cases have genuinely different answers about where the phone has to be.
+   */
+  (function pairHint() {
+    var viaTunnel = location.protocol === 'https:';
+    $('pairHint').textContent = viaTunnel
+      ? 'Each code lasts two minutes. Once linked, this phone works from any network.'
+      : 'Each code lasts two minutes, and this phone has to be on the same Wi-Fi as your computer.';
+  })();
+
+  function deviceName() {
+    var ua = navigator.userAgent;
+    if (/iPhone/.test(ua)) return 'iPhone';
+    if (/iPad/.test(ua)) return 'iPad';
+    var m = /Android.*?;\s*([^;)]+)\s*(?:Build|\))/.exec(ua);
+    return m ? m[1].trim() : 'Phone';
+  }
+
+  /**
+   * A QR scan lands on /#p=<256-bit secret>. The fragment is never sent to the server by
+   * the browser, so the secret reaches this page without ever crossing the network — which
+   * is what lets everything below be encrypted with something no listener has seen.
+   */
+  function pairFromHash() {
+    var m = /[#&]p=([A-Za-z0-9_-]{43,})/.exec(location.hash || '');
+    if (!m) return;
+    var pairKey = unb64url(m[1]);
+    // Drop the secret out of the URL bar and history before anything else can read it.
+    history.replaceState(null, '', location.pathname);
+    if (pairKey.length !== nacl.secretbox.keyLength) { $('pairErr').textContent = 'That link looks damaged.'; return; }
+
+    $('pairErr').textContent = 'Linking…';
+    fetch('/pair', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: seal({ name: deviceName() }, pairKey) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        var payload = res.ok && res.j.sealed ? unseal(res.j.sealed, pairKey) : null;
+        if (!payload || !payload.key) {
+          $('pairErr').textContent = res.ok ? 'Pairing failed.' : (res.j.error || 'That code has expired.');
+          return;
+        }
+        deviceKey = payload.key;
+        localStorage.setItem(KEY_KEY, deviceKey);
+        $('pairErr').textContent = '';
+        connect();
+      })
+      .catch(function () { $('pairErr').textContent = 'Could not reach Ternix.'; });
+  }
+
+  // ------------------------------------------------------------ socket
+
+  function connect() {
+    if (!deviceKey) { show('pairScreen'); return; }
+    clearTimeout(retryTimer);
+    var proto = location.protocol === 'https:' ? 'wss' : 'ws';
+
+    // A stored key that will not decode is unusable — better to ask for a re-scan than to
+    // throw on every reconnect forever.
+    var keyBytes;
+    try { keyBytes = unb64(deviceKey); } catch (e) { keyBytes = null; }
+    if (!keyBytes || keyBytes.length !== nacl.secretbox.keyLength) {
+      localStorage.removeItem(KEY_KEY);
+      deviceKey = null;
+      show('pairScreen');
+      $('pairErr').textContent = 'This phone needs linking again. Scan the QR code.';
+      return;
+    }
+
+    // A fresh exchange per connection, so a recording of this session cannot be unlocked
+    // later even by someone who eventually gets the device key.
+    var eph = nacl.box.keyPair();
+    sessionKey = null;
+    ws = new WebSocket(proto + '://' + location.host + '/ws');
+
+    ws.onopen = function () {
+      // Nothing but the sealed handshake goes out until the session key exists.
+      ws.send(seal({ epub: b64(eph.publicKey) }, keyBytes));
+    };
+
+    ws.onmessage = function (ev) {
+      if (!sessionKey) {
+        var hello = unseal(ev.data, keyBytes);
+        if (!hello || !hello.epub) { try { ws.close(); } catch (e) {} return; }
+        sessionKey = nacl.box.before(unb64(hello.epub), eph.secretKey);
+        retry = 0;
+        $('connDot').className = 'dot ok';
+        setBanner(null);
+        // Reclaim the pane we were on before the drop, if it survived.
+        if (wantPane) send({ t: 'attach', paneId: wantPane });
+        send({ t: 'list' });
+        return;
+      }
+
+      var m = unseal(ev.data, sessionKey);
+      if (!m) return;   // tampered or stale — never parsed, never acted on
+      if (m.t === 'list') onList(m);
+      else if (m.t === 'attached') onAttached(m);
+      else if (m.t === 'data') { if (term) term.write(m.d); }
+      else if (m.t === 'status') setBanner(m.state === 'error' ? (m.message || 'Error') : null, true);
+      else if (m.t === 'exit') { setBanner('Session ended' + (m.reason ? ' — ' + m.reason : ''), true); wantPane = null; }
+      else if (m.t === 'error') {
+        setBanner(m.message, true);
+        if (!pane) { wantPane = null; toast(m.message); show('pickScreen'); }
+      }
+    };
+
+    ws.onclose = function (e) {
+      $('connDot').className = 'dot bad';
+      ws = null;
+      sessionKey = null;
+      if (e.code === 4003 || e.code === 1008) { // revoked / rejected
+        localStorage.removeItem(KEY_KEY);
+        deviceKey = null;
+        show('pairScreen');
+        $('pairErr').textContent = 'This phone was unlinked. Scan the QR code again to re-link.';
+        return;
+      }
+      if (!deviceKey) return;
+      setBanner('Reconnecting…');
+      retry = Math.min(retry + 1, 6);
+      retryTimer = setTimeout(connect, Math.min(1000 * Math.pow(2, retry - 1), 15000));
+    };
+
+    ws.onerror = function () { try { ws.close(); } catch (e) {} };
+  }
+
+  function send(msg) { if (ws && ws.readyState === 1 && sessionKey) ws.send(seal(msg, sessionKey)); }
+
+  function setBanner(text, warn) {
+    var b = $('termBanner');
+    b.hidden = !text;
+    b.textContent = text || '';
+    b.className = 'banner' + (warn ? ' warn' : '');
+  }
+
+  /** A transient message on the picker, for errors raised with no terminal on screen. */
+  function toast(text) {
+    if (!text) return;
+    var el = document.createElement('div');
+    el.className = 'err';
+    el.textContent = text;
+    el.style.cssText = 'position:fixed;left:16px;right:16px;bottom:24px;background:var(--surface2);' +
+      'border:1px solid var(--border);border-radius:10px;padding:12px;z-index:30;margin:0';
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 4000);
+  }
+
+  // ------------------------------------------------------------ picker
+
+  $('refreshBtn').onclick = function () { send({ t: 'list' }); };
+
+  function onList(m) {
+    catalog = {
+      sessions: m.sessions || [],
+      panes: m.panes || [],
+      quick: m.quick || [],
+      snippets: m.snippets || []
+    };
+    if (!pane) renderPicker();
+    if ($('sheet').classList.contains('on')) renderSheet();
+  }
+
+  function renderPicker() {
+    show('pickScreen');
+    var body = $('pickBody');
+    body.innerHTML = '';
+
+    var mine = catalog.panes.filter(function (p) { return p.phone; });
+    var theirs = catalog.panes.filter(function (p) { return !p.phone; });
+
+    if (mine.length) {
+      body.appendChild(group('Open on this phone', mine.map(function (p) {
+        return paneRow(p, p.host || p.protocol);
+      })));
+    }
+    if (theirs.length) {
+      body.appendChild(group('Running on desktop', theirs.map(function (p) {
+        return paneRow(p, (p.host || p.protocol) + ' · ' + p.cols + '×' + p.rows);
+      })));
+    }
+
+    var rows = [row('Local shell', 'Shell on the computer running Ternix', 'local', function () { spawn(null, 'Local shell'); })];
+    catalog.sessions.forEach(function (s) {
+      if (s.ready) {
+        rows.push(row(s.name, s.host || s.protocol, s.protocol, function () { spawn(s.id, s.name); }));
+      } else if (s.blocked && s.protocol !== 'rdp' && s.protocol !== 'vnc') {
+        // Shown but inert: hiding it entirely reads as "the session vanished".
+        var r = row(s.name, s.blocked, s.protocol, function () { toast(s.blocked); });
+        r.classList.add('blocked');
+        rows.push(r);
+      }
+    });
+    body.appendChild(group('Start a session', rows));
+  }
+
+  function paneRow(p, hint) {
+    var r = row(p.sessionName, hint, 'live', function () {
+      wantPane = p.tabId;
+      send({ t: 'attach', paneId: p.tabId });
+    });
+    var x = document.createElement('button');
+    x.className = 'x';
+    x.textContent = '✕';
+    x.title = 'Close session';
+    x.onclick = function (e) {
+      e.stopPropagation();
+      if (!confirm('Close "' + p.sessionName + '"? Anything running in it stops.')) return;
+      if (wantPane === p.tabId) wantPane = null;
+      send({ t: 'close', paneId: p.tabId });
+    };
+    r.appendChild(x);
+    return r;
+  }
+
+  function group(title, rows) {
+    var g = document.createElement('div');
+    g.className = 'group';
+    var h = document.createElement('h2');
+    h.textContent = title;
+    g.appendChild(h);
+    rows.forEach(function (r) { g.appendChild(r); });
+    return g;
+  }
+
+  function row(name, hint, tag, onClick) {
+    var r = document.createElement('div');
+    r.className = 'row';
+    var b = document.createElement('button');
+    b.className = 'open';
+    var meta = document.createElement('div');
+    meta.className = 'meta';
+    var n = document.createElement('div');
+    n.className = 'name';
+    n.textContent = name;
+    var h = document.createElement('div');
+    h.className = 'hint';
+    h.textContent = hint;
+    meta.appendChild(n); meta.appendChild(h);
+    var t = document.createElement('span');
+    t.className = 'tag' + (tag === 'live' ? ' live' : '');
+    t.textContent = tag;
+    b.appendChild(meta); b.appendChild(t);
+    b.onclick = onClick;
+    r.appendChild(b);
+    return r;
+  }
+
+  function spawn(sessionId, name) {
+    ensureTerm();
+    $('termTitle').textContent = name || 'Session';
+    var g = fitGeometry();
+    send({ t: 'spawn', sessionId: sessionId, cols: g.cols, rows: g.rows });
+  }
+
+  // ------------------------------------------------------------ terminal
+
+  function ensureTerm() {
+    if (term) return;
+    term = new Terminal({
+      // A phone screen picks its own size: 80 columns is the width almost every CLI
+      // assumes, so scale the font to whatever makes that fit rather than exposing
+      // a font control the user has to fiddle with.
+      fontSize: autoFontSize(),
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      cursorBlink: true,
+      scrollback: 2000,
+      theme: { background: '#000000', foreground: '#e6edf3', cursor: '#2f81f7' }
+    });
+    fit = new FitAddon.FitAddon();
+    term.loadAddon(fit);
+    term.open($('term'));
+
+    term.onData(function (d) {
+      // Sticky modifiers: a tap on ctrl/alt applies to exactly the next character.
+      if (mods.ctrl && d.length === 1) {
+        var c = d.toUpperCase().charCodeAt(0);
+        if (c >= 64 && c < 128) d = String.fromCharCode(c & 31);
+        setMod('ctrl', false);
+      }
+      if (mods.alt && d.length === 1) { d = '\u001b' + d; setMod('alt', false); }
+      send({ t: 'input', data: d });
+    });
+
+    term.onResize(function (g) {
+      if (pane && pane.owned) send({ t: 'resize', cols: g.cols, rows: g.rows });
+    });
+  }
+
+  /**
+   * Font size chosen from the viewport rather than exposed as a control. Aims at ~72
+   * columns — wide enough for ordinary shell output — but readability wins: on a phone
+   * the floor pins it to 11px and you get the ~60 columns that actually fit.
+   * Monospace glyphs are close enough to 0.6em wide for this.
+   */
+  function autoFontSize() {
+    var w = $('termWrap').clientWidth || window.innerWidth;
+    return Math.max(11, Math.min(16, Math.floor(w / 72 / 0.6)));
+  }
+
+  function onAttached(m) {
+    ensureTerm();
+    pane = { id: m.paneId, owned: m.owned, cols: m.cols, rows: m.rows, sessionId: m.sessionId };
+    wantPane = m.paneId;
+    term.reset();
+    $('termTitle').textContent = m.title || 'Session';
+    setBanner(m.owned ? null : 'Mirroring a desktop pane — sized by the desktop.');
+    show('termScreen');
+    layout();
+    if (m.replay) term.write(m.replay);
+    if (m.banner) term.write(m.banner.replace(/\n/g, '\r\n') + '\r\n');
+    setTimeout(function () { term.focus(); }, 50);
+  }
+
+  /** Cols/rows the phone's viewport can hold at the current font size. */
+  function fitGeometry() {
+    var el = $('term');
+    el.classList.add('fitmode');
+    $('termWrap').classList.remove('pan');
+    term.options.fontSize = autoFontSize();
+    var g = fit.proposeDimensions() || { cols: 80, rows: 24 };
+    return { cols: Math.max(g.cols || 80, 20), rows: Math.max(g.rows || 24, 5) };
+  }
+
+  /**
+   * Two layouts. A pane the phone opened is resized to fit the screen. A mirrored desktop
+   * pane must keep the desktop's exact cols/rows — reflowing it would reflow the desktop —
+   * so instead the type shrinks until those columns fit, down to a legibility floor past
+   * which the pane simply pans sideways. (Scaling the whole terminal with a CSS transform
+   * would blur it at exactly the sizes where legibility already hurts.)
+   */
+  function layout() {
+    if (!term || !pane) return;
+    var el = $('term');
+    var wrap = $('termWrap');
+    if (pane.owned) {
+      el.classList.add('fitmode');
+      wrap.classList.remove('pan');
+      term.options.fontSize = autoFontSize();
+      fit.fit();
+    } else {
+      el.classList.remove('fitmode');
+      wrap.classList.add('pan');
+      term.options.fontSize = Math.max(8, Math.min(16, Math.floor(wrap.clientWidth / pane.cols / 0.6)));
+      term.resize(pane.cols, pane.rows);
+    }
+  }
+
+  function leave() {
+    send({ t: 'detach' });
+    pane = null;
+    wantPane = null;
+    setBanner(null);
+    closeSheet();
+    send({ t: 'list' });
+    renderPicker();
+  }
+
+  $('backBtn').onclick = leave;
+
+  $('closeBtn').onclick = function () {
+    if (!pane) { leave(); return; }
+    if (!confirm('Close this session? Anything running in it stops.')) return;
+    send({ t: 'close', paneId: pane.id });
+    leave();
+  };
+
+  // ------------------------------------------------------------ key bar
+
+  var SEQ = {
+    esc: '\u001b', tab: '\t',
+    up: '\u001b[A', down: '\u001b[B', right: '\u001b[C', left: '\u001b[D',
+    home: '\u001b[H', end: '\u001b[F', pgup: '\u001b[5~', pgdn: '\u001b[6~'
+  };
+
+  function setMod(name, on) {
+    mods[name] = on;
+    var el = document.querySelector('.key[data-mod="' + name + '"]');
+    if (el) el.classList.toggle('armed', on);
+  }
+
+  $('keys').addEventListener('click', function (e) {
+    var k = e.target.closest ? e.target.closest('.key') : null;
+    if (!k) return;
+    e.preventDefault();
+
+    // Arming a modifier must put focus straight back on the terminal. Tapping the row blurs
+    // the hidden textarea, which drops the soft keyboard — and a modifier is only ever the
+    // first half of a chord, so losing the keyboard right then costs two extra taps.
+    if (k.dataset.mod) { setMod(k.dataset.mod, !mods[k.dataset.mod]); if (term) term.focus(); return; }
+    if (k.dataset.k === 'kbd') { if (term) term.focus(); return; }
+
+    // Literal control codes can't survive round-tripping through an HTML attribute,
+    // so ^C/^D/^Z name their letter and are folded here.
+    if (k.dataset.ctrl) {
+      send({ t: 'input', data: String.fromCharCode(k.dataset.ctrl.toUpperCase().charCodeAt(0) & 31) });
+      setMod('ctrl', false);
+      if (term) term.focus();
+      return;
+    }
+
+    var data = k.dataset.send !== undefined ? k.dataset.send : SEQ[k.dataset.k];
+    if (data === undefined) return;
+    if (mods.ctrl && data.length === 1) {
+      var c = data.toUpperCase().charCodeAt(0);
+      if (c >= 64 && c < 128) data = String.fromCharCode(c & 31);
+      setMod('ctrl', false);
+    }
+    if (mods.alt) { data = '\u001b' + data; setMod('alt', false); }
+    send({ t: 'input', data: data });
+    if (term) term.focus();
+  });
+
+  // ------------------------------------------------------------ command sheet
+
+  $('cmdBtn').onclick = function () {
+    $('sheet').classList.add('on');
+    renderSheet();
+  };
+  $('sheetClose').onclick = closeSheet;
+  $('sheet').onclick = function (e) { if (e.target === $('sheet')) closeSheet(); };
+  function closeSheet() { $('sheet').classList.remove('on'); }
+
+  $('sheetTabs').addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('.stab') : null;
+    if (!t) return;
+    sheetTab = t.dataset.tab;
+    renderSheet();
+  });
+
+  function renderSheet() {
+    Array.prototype.forEach.call(document.querySelectorAll('.stab'), function (t) {
+      t.classList.toggle('on', t.dataset.tab === sheetTab);
+    });
+    var body = $('sheetBody');
+    body.innerHTML = '';
+
+    var items;
+    if (sheetTab === 'quick') {
+      // Quick commands run on tap; snippets only type, so you can edit them first.
+      items = catalog.quick.map(function (q) { return { label: q.label, command: q.command, enter: true }; });
+    } else {
+      // Global snippets always, plus any scoped to the session this pane belongs to.
+      var sid = pane ? pane.sessionId : null;
+      items = catalog.snippets
+        .filter(function (s) { return s.session_id == null || s.session_id === sid; })
+        .map(function (s) { return { label: s.name, command: s.command, enter: false }; });
+    }
+
+    if (!items.length) {
+      var e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = sheetTab === 'quick'
+        ? 'No quick commands yet — add them in Ternix → Settings → Phone.'
+        : 'No snippets for this session.';
+      body.appendChild(e);
+      return;
+    }
+
+    items.forEach(function (it) {
+      var b = document.createElement('button');
+      b.className = 'cmd';
+      var l = document.createElement('div');
+      l.className = 'label';
+      l.textContent = it.label;
+      var c = document.createElement('code');
+      c.textContent = it.command;
+      b.appendChild(l);
+      b.appendChild(c);
+      b.onclick = function () {
+        send({ t: 'input', data: it.command + (it.enter ? '\r' : '') });
+        closeSheet();
+        if (term) term.focus();
+      };
+      body.appendChild(b);
+    });
+  }
+
+  // ------------------------------------------------------------ viewport
+
+  // Keep the layout above the soft keyboard: visualViewport shrinks when it opens.
+  function syncViewport() {
+    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    $('app').style.height = h + 'px';
+    layout();
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncViewport);
+    window.visualViewport.addEventListener('scroll', syncViewport);
+  }
+  window.addEventListener('resize', syncViewport);
+  window.addEventListener('orientationchange', function () { setTimeout(syncViewport, 200); });
+
+  // A backgrounded tab gets its socket reaped by the OS; reconnect on the way back.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && deviceKey && !ws) { retry = 0; connect(); }
+  });
+
+  syncViewport();
+  // A fresh QR scan re-links even an already-linked phone, so the hash wins over the
+  // stored key — that is the recovery path when a key is revoked from the desktop.
+  if (/[#&]p=/.test(location.hash || '')) { show('pairScreen'); pairFromHash(); }
+  else if (deviceKey) connect();
+  else show('pairScreen');
+
+  // Scanning again with this page already open only changes the fragment — no reload fires,
+  // so without this a re-link would look like it silently did nothing.
+  window.addEventListener('hashchange', function () {
+    if (!/[#&]p=/.test(location.hash || '')) return;
+    if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+    show('pairScreen');
+    pairFromHash();
+  });
+})();
+</script>
+</body>
+</html>

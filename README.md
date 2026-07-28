@@ -8,7 +8,7 @@
 
   <p>
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg" />
-    <img alt="Version" src="https://img.shields.io/badge/version-1.0.2-green.svg" />
+    <img alt="Version" src="https://img.shields.io/badge/version-1.1.8-green.svg" />
     <img alt="Platform" src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg" />
     <img alt="Electron" src="https://img.shields.io/badge/Electron-33-47848F?logo=electron" />
     <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react" />
@@ -21,6 +21,8 @@
 ## 🌟 Overview
 
 **Ternix** is a privacy-first desktop terminal and remote-session manager. It speaks SSH, Telnet, Serial, local shells, RDP, and VNC from a single interface, and bundles the tools you normally reach for separately: an SFTP file manager, an SSH key vault, port forwarding, session recording, a live system monitor, and command snippets.
+
+It also reaches your terminal from your phone — a linked phone can open its own sessions or mirror one already running on the desktop, end-to-end encrypted, with no account and no third-party service holding your traffic.
 
 Everything is stored **locally** in a SQLite database. Credentials are encrypted at rest with AES-256-GCM. Nothing is sent to a cloud service.
 
@@ -54,12 +56,15 @@ It ships as a native app for Linux (AppImage/deb) and Windows (NSIS installer/po
 - Font zoom with `Ctrl` `+` / `-` / `0`
 - **Broadcast mode** — type once in a floating bar, send to every pane of every broadcast-enabled tab
 
-### 🪟 Tabs & Split Panes
+### 🪟 Tabs, Windows & Split Panes
 
-- Up to **6 panes per tab**, tiled as at most **2 rows × 3 columns**. Panes share space equally.
+- Up to **6 panes per tab**, tiled as at most **2 rows × 3 columns**
+- **Drag the dividers** to resize panes; each pane clamps to a minimum so none can be squeezed away. Sizes persist per tab.
 - Split **right** (`Ctrl+Shift+D`) or **down** (`Ctrl+Shift+E`); a new pane inherits the active pane's session
+- **Split the tab strip** into two side-by-side groups with an adjustable ratio — move a tab into the other group from its context menu, or drop it on a tab already there. While split, each side caps at 2×2 panes rather than 3×2.
+- **Tear a tab into its own window** — from the context menu, or by dragging it out of the window. The connection is handed over live, not reconnected, so nothing running is interrupted. Drop it back onto another window's tab strip to re-adopt it.
 - Tabs: drag to reorder, middle-click to close, rename, `Ctrl+1`…`Ctrl+9` to jump
-- Tab context menu: duplicate tab, rename, split right/down, close tab / others / to the right
+- Tab context menu: duplicate tab (opens next to the original), rename, split right/down, move to group / new window, close tab / others / to the right
 - **Restore last session** on startup, or open a blank tab, or open the session picker
 - **Auto-reconnect** with configurable retries and delay; `Ctrl+R` to reconnect a dropped pane manually
 - The active pane is outlined when a tab holds more than one
@@ -181,6 +186,21 @@ A live dashboard for the machine you're connected to — **local or remote over 
 
 Remote stats are gathered by a small `/proc` probe over the SSH connection. While a session is still handshaking the panel says so rather than quietly showing your **local** machine's numbers.
 
+### 📱 Phone Access
+
+Turn on **Settings → Phone** and Ternix serves a small terminal your phone opens in its browser. A linked phone can start its own sessions or **mirror a pane already running on the desktop** — both ends are views onto the same connection, so what you type on either appears on both.
+
+- **Two ways in.** *Local* serves your Wi-Fi directly. *Tunnel* publishes through a Cloudflare quick tunnel so the phone works on mobile data — `cloudflared` is downloaded on first use rather than bundled, so the installer stays small.
+- **Linking is a QR scan.** The QR carries a 256-bit key in the URL *fragment*, which browsers never transmit — so the key reaches your phone without crossing the network at all. It is blurred on screen until you reveal it, single-use, and expires after two minutes.
+- **Everything is encrypted end to end**, in both modes. See [Security Notes](#the-phone-link) for what that does and does not cover.
+- **The phone never talks to your servers.** It sends keystrokes and receives text; the SSH connection is made by the desktop, and credentials never leave it.
+- **Sessions that would need a desktop prompt are filtered out** — a phone has no way to answer a password, key, or host-key dialog, so those sessions say *"open it once on the desktop"* instead of connecting to a spinner that never resolves.
+- **Dropped connections don't kill work.** A phone-opened pane survives 120 seconds without a socket and is reclaimed on reconnect, so walking into a lift doesn't end a running job. Mirrored desktop panes are never reaped by the phone.
+- **Scrollback replay** on attach, so a mirrored pane isn't a blank screen until the next keystroke
+- **Quick commands** — one-tap commands you'd rather not thumb-type, shown alongside your snippets
+- Geometry is one-way: the phone scales to fit a mirrored pane rather than resizing it, so a phone can never reflow your desktop terminal
+- Every linked phone is listed with when it was linked and last used, and can be **unlinked instantly** — revoking closes its live socket mid-session
+
 ### 📋 Connection Log & Global Search
 
 - Every connect/disconnect is logged with host, timestamp, duration, and disconnect reason (last 500)
@@ -253,6 +273,9 @@ Exporting a backup *with private keys* requires the master password, when one is
 | Transfers | `transfer.preserveTimestamps` | `true` |
 | Recording | `recording.autoRecord` | `false` |
 | Recording | `recording.maxStorageMb` | `0` (0 = unlimited) |
+| Phone | `mobile.enabled` | `false` |
+| Phone | `mobile.port` | `7717` |
+| Phone | `mobile.quickCommands` | `[]` (JSON) |
 | Updates | `updates.autoCheck` | `true` |
 | Updates | `updates.channel` | `stable` |
 | Advanced | `rdp.guacdHost` | `127.0.0.1` |
@@ -298,6 +321,12 @@ ternix/
 │       ├── KeyService.ts        # Key vault: generate, import, deploy
 │       ├── CryptoService.ts     # AES-256-GCM vault + PBKDF2
 │       ├── ImportExportService.ts # 7 import / 5 export formats
+│       ├── MobileService.ts    # Phone server: pairing, encrypted WS, pane bridge
+│       ├── CloudflaredService.ts # Downloads/manages the cloudflared binary
+│       ├── mobileCrypto.ts      # Sealing + handshake shared with the phone client
+│       ├── pairingGate.ts       # Pairing lifecycle: single-use, TTL, burn on failure
+│       ├── mobileGate.ts        # Which sessions a phone may open unattended
+│       ├── SpawnService.ts      # The one place a connection is created
 │       ├── ConnectionManager.ts # Active connection registry, OSC 7 cwd tracking
 │       └── DatabaseService.ts   # SQLite lifecycle
 │
@@ -311,7 +340,7 @@ ternix/
 │   │   │                        #   TunnelsPanel, RecordingsPanel, StatsPanel,
 │   │   │                        #   SearchPanel, SftpSidebar, TransferQueue
 │   │   ├── sftp/                # SftpPanel, FileList, FileRow, PermissionsEditor
-│   │   ├── settings/            # SettingsPanel + 9 sections
+│   │   ├── settings/            # SettingsPanel + 10 sections (incl. Phone)
 │   │   ├── dialogs/             # NewSession, KeyVault, Tunnel, ExportImport,
 │   │   │                        #   RecordingPlayer, ThemeEditor, Snippet, ConnectionLog
 │   │   └── ui/                  # Modal, ContextMenu
@@ -321,6 +350,7 @@ ternix/
 │   ├── themes/                  # 12 built-in themes
 │   └── utils/                   # fuzzy, path, sftpSort, statsTarget, snippets, format*
 │
+├── resources/mobile/index.html  # The phone client — one self-contained page
 ├── electron-builder.json        # AppImage + deb (Linux), NSIS + portable (Windows)
 └── electron.vite.config.ts
 ```
@@ -399,9 +429,15 @@ node --experimental-strip-types electron/db/snippetScope.check.ts
 node --experimental-strip-types electron/services/sftpOwner.check.ts
 node --experimental-strip-types electron/services/transferOutcome.check.ts
 node --experimental-strip-types electron/services/vaultKeyPlan.check.ts
+node --experimental-strip-types electron/services/mobileGate.check.ts
+node --experimental-strip-types electron/services/pairingGate.check.ts
+node --experimental-strip-types electron/services/mobileCrypto.check.ts
+node --experimental-strip-types electron/services/mobileCrypto.interop.check.ts
 node --experimental-strip-types src/utils/sftpSort.check.ts
 node --experimental-strip-types src/utils/statsTarget.check.ts
 ```
+
+`mobileCrypto.interop.check.ts` is the odd one out: it lifts the phone client's crypto helpers straight out of `resources/mobile/index.html` and runs them against the desktop's, so the browser and Node implementations can't silently drift apart.
 
 ---
 
@@ -438,6 +474,22 @@ Your password itself is never stored. It is verified by decrypting a known verif
 
 Master-password mode locks the vault on an idle timeout and on system sleep, zeroing the key. **Keychain mode is always unlocked** — the key is available whenever the app runs, so the idle and sleep settings do nothing there. Choose master-password mode if you want a vault that actually locks.
 
+### The phone link
+
+Everything between the desktop and a linked phone is sealed with **XSalsa20-Poly1305** under a key only those two hold. This runs *inside* the transport, so it applies identically on a plain-HTTP LAN address and through the Cloudflare tunnel.
+
+**How the key gets there.** The pairing QR encodes a 256-bit secret in the URL **fragment**, and browsers never send fragments to a server. Scanning is therefore the entire key exchange — nothing equivalent ever crosses the network, so there is no handshake to capture and nothing short enough to guess. The phone proves it scanned by sealing its pairing request under that secret; the desktop replies with a per-device link key, sealed the same way. Pairings are single-use, expire in 120 seconds, and burn after 5 failed attempts.
+
+**Per-connection keys.** Each WebSocket begins with the phone sealing an ephemeral X25519 public key under its device key. That one frame both identifies the device and starts a fresh exchange, so traffic is encrypted under a key that exists only for that connection — a recording made today stays unreadable even if the device key leaks later. The device key is never sent over the network after pairing; it only ever proves itself by decrypting.
+
+Nothing identifying travels in the clear either: there is no token in the WebSocket URL (query strings are the part of a request proxies and access logs keep), and the desktop identifies a phone by finding which stored key opens the frame rather than reading an id off the wire.
+
+**What this does not cover.** The encryption is delivered by JavaScript that the phone fetches over the same channel. An attacker who can *modify* traffic in real time — not merely observe it — could tamper with that page as it loads, and no amount of payload encryption fixes that. On a LAN that means anyone positioned on your network; through the tunnel it means Cloudflare, who serve the page. Passive observation is defeated completely in both cases; this is strictly about active tampering. Real TLS is the only fix, and a LAN IP can never hold a certificate a browser trusts. Prefer Tunnel mode on networks you don't control.
+
+Also unprotected, and unfixable by design: the existence and volume of the connection is visible to anyone on the path, and anyone who photographs the QR while it is displayed can link their own phone — which is why it stays blurred until you reveal it, and why every pairing shows up in the device list.
+
+Device link keys are stored **unencrypted** in the settings table. Both ends must hold the key in the clear to encrypt with it, so unlike a bearer token it cannot be stored hashed. Anyone who can read that database already has your user account, and with it your SSH keys.
+
 ### Other notes
 
 - Exporting a private key prompts for the master password **only when one is set**.
@@ -452,7 +504,6 @@ Master-password mode locks the vault on an idle timeout and on system sleep, zer
 
 Documented so you don't discover them the hard way:
 
-- **Split panes share space equally**; there are no draggable dividers between them.
 - **Compact mode** only hides the per-pane toolbar.
 - **Per-session terminal encoding** is stored but not applied — SSH is UTF-8, Telnet and Serial are byte-transparent.
 - **X11 forwarding**, `server_alive_interval`, and RDP colour-depth/fullscreen are exposed in the session editor but not yet wired to the connection.
@@ -461,6 +512,9 @@ Documented so you don't discover them the hard way:
 - Accepting a **changed host key** does not overwrite the stored pin, so you'll be asked again next connect.
 - **Embedded RDP is Linux only**; Windows always uses `mstsc`.
 - `~/.ssh` scanning **skips passphrase-protected keys** (they can't be fingerprinted without the passphrase).
+- **A phone pairs per address, not per device.** Browser storage is scoped to the origin, so a phone linked over Wi-Fi is not linked over the tunnel, and each pairing adds its own entry to the device list.
+- **Cloudflare quick tunnels get a new URL every start**, which by the point above means re-pairing each time — and re-pairing needs you in front of the desktop to scan. Start the tunnel before you leave, or use a named tunnel (not yet supported in-app).
+- **Phone access can't answer connection prompts.** Sessions needing a password, an SSH key, or host-key confirmation must be opened once on the desktop first.
 - **macOS is not supported.** It has never been tested, nothing is built or released for it, and no macOS artifacts exist.
 
 ---
@@ -477,6 +531,8 @@ Documented so you don't discover them the hard way:
 | `keytar` | OS keychain (optional) |
 | `guacamole-lite` + `guacamole-common-js` | Embedded RDP via guacd |
 | `@novnc/novnc` + `ws` | Embedded VNC over a loopback bridge |
+| `tweetnacl` | Phone-link encryption (X25519 + XSalsa20-Poly1305) |
+| `qrcode` | Pairing QR for phone access |
 | `js-yaml` | Tabby YAML import/export |
 | `react` + `react-dom` + `zustand` | UI and state |
 | `lucide-react` | Icons |

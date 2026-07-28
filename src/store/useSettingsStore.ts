@@ -51,7 +51,10 @@ export const SETTING_DEFAULTS: SettingsMap = {
   'rdp.guacdHost': '127.0.0.1',
   'rdp.guacdPort': '4822',
   'recording.autoRecord': 'false',
-  'recording.maxStorageMb': '0'
+  'recording.maxStorageMb': '0',
+  'mobile.enabled': 'false',
+  'mobile.port': '7717',
+  'mobile.quickCommands': '[]'
 }
 
 interface SettingsState {

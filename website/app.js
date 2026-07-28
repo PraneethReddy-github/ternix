@@ -235,6 +235,7 @@ const revealObserver = new IntersectionObserver((entries) => {
 });
 
 featureRows.forEach(row => revealObserver.observe(row));
+document.querySelectorAll('.feature-group').forEach(g => revealObserver.observe(g));
 if (githubSection) revealObserver.observe(githubSection);
 
 /* ==========================================================
@@ -247,6 +248,7 @@ window.addEventListener('DOMContentLoaded', () => {
     terminalWindow.classList.add('visible');
     runTerminal();
     featureRows.forEach(row => row.classList.add('revealed'));
+    document.querySelectorAll('.feature-group').forEach(g => g.classList.add('revealed'));
     if (githubSection) githubSection.classList.add('revealed');
   } else {
     initTerminal();

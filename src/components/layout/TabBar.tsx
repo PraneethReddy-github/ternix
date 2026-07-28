@@ -257,7 +257,7 @@ function openSessionInNewTab(tab: Tab) {
   if (pane?.sessionId != null) {
     const session = useSessionStore.getState().sessions.find((x) => x.id === pane.sessionId)
     if (session) {
-      connectSession(session, useTabStore)
+      connectSession(session, useTabStore, { after: tab.id, group: tab.group ?? 0 })
       return
     }
   }
@@ -267,7 +267,9 @@ function openSessionInNewTab(tab: Tab) {
     protocol: pane?.protocol ?? 'local',
     title: tab.title,
     host: pane?.host ?? null,
-    color: tab.color
+    color: tab.color,
+    after: tab.id,
+    group: tab.group ?? 0
   })
 }
 
