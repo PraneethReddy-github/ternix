@@ -55,6 +55,7 @@
     ]
   },
   "nsis": {
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "oneClick": false,
     "allowToChangeInstallationDirectory": true
   },
