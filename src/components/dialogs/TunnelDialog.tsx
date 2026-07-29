@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Trash2, Plug, Play } from 'lucide-react'
 import type { Tunnel, TunnelType } from '@shared/index'
 import { Modal, Field } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
 import { useUiStore } from '@/store/useUiStore'
 import { useTabStore } from '@/store/useTabStore'
 
@@ -82,11 +83,15 @@ export function TunnelDialog({ sessionId, onClose }: { sessionId: number; onClos
       ) : (
         <div>
           <Field label="Type">
-            <select className="tx-input" value={draft.tunnel_type} onChange={(e) => setDraft({ ...draft, tunnel_type: e.target.value as TunnelType })}>
-              <option value="local">Local (-L) — forward a local port to a remote host</option>
-              <option value="remote">Remote (-R) — expose a local port on the server</option>
-              <option value="dynamic">Dynamic (-D) — SOCKS5 proxy</option>
-            </select>
+            <Select
+              value={draft.tunnel_type ?? 'local'}
+              onChange={(v) => setDraft({ ...draft, tunnel_type: v as TunnelType })}
+              options={[
+                { value: 'local', label: 'Local (-L) — forward a local port to a remote host' },
+                { value: 'remote', label: 'Remote (-R) — expose a local port on the server' },
+                { value: 'dynamic', label: 'Dynamic (-D) — SOCKS5 proxy' }
+              ]}
+            />
           </Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label="Local host"><input className="tx-input" value={draft.local_host ?? ''} onChange={(e) => setDraft({ ...draft, local_host: e.target.value })} /></Field>

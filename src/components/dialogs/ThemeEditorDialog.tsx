@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { TerminalTheme } from '@shared/index'
 import { Modal, Field } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useUiStore } from '@/store/useUiStore'
 import { themeById } from '@/themes'
@@ -64,9 +65,11 @@ export function ThemeEditorDialog({ baseId, onClose }: { baseId?: string; onClos
         <div>
           <Field label="Theme name"><input className="tx-input" value={theme.name} onChange={(e) => setTheme({ ...theme, name: e.target.value })} /></Field>
           <Field label="Type">
-            <select className="tx-input" value={theme.type} onChange={(e) => setTheme({ ...theme, type: e.target.value as any })}>
-              <option value="dark">Dark</option><option value="light">Light</option>
-            </select>
+            <Select
+              value={theme.type}
+              onChange={(v) => setTheme({ ...theme, type: v as any })}
+              options={[{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]}
+            />
           </Field>
           <div className="text-[11px] uppercase text-muted mb-1 mt-2">Core</div>
           {CORE_KEYS.map((k) => (

@@ -2,6 +2,7 @@ import { Plus, Trash2, Check } from 'lucide-react'
 import { Section, Row, ToggleSetting, SelectSetting, TextSetting, NumberSetting } from './SettingControls'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useUiStore } from '@/store/useUiStore'
+import { FontPicker } from './FontPicker'
 import { BUILTIN_THEMES } from '@/themes'
 import { cn } from '@/utils/cn'
 
@@ -46,9 +47,8 @@ export function AppearanceSettings() {
       </Section>
 
       <Section title="Font">
-        <Row label="Font family"><TextSetting k="appearance.fontFamily" width={280} /></Row>
+        <Row label="Font family"><FontPicker /></Row>
         <Row label="Font size"><NumberSetting k="appearance.fontSize" min={8} max={32} /></Row>
-        <Row label="Ligatures" hint="Font ligatures (Fira Code / JetBrains Mono); applies to new tabs"><ToggleSetting k="appearance.ligatures" /></Row>
         <Row label="Line height"><TextSetting k="appearance.lineHeight" width={80} /></Row>
         <Row label="Letter spacing"><NumberSetting k="appearance.letterSpacing" /></Row>
       </Section>

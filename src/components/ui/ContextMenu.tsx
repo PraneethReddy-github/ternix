@@ -38,12 +38,16 @@ function ContextMenuView({ x, y, items, onClose }: ContextMenuState & { onClose:
       if (ref.current?.contains(e.target as Node)) return
       onClose()
     }
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('mousedown', onDown)
-    window.addEventListener('keydown', onKey)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onClose()
+    }
+    window.addEventListener('mousedown', onDown, true)
+    window.addEventListener('keydown', onKey, true)
     return () => {
-      window.removeEventListener('mousedown', onDown)
-      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('mousedown', onDown, true)
+      window.removeEventListener('keydown', onKey, true)
     }
   }, [onClose])
 
@@ -71,9 +75,8 @@ function ContextMenuView({ x, y, items, onClose }: ContextMenuState & { onClose:
           <button
             key={i}
             disabled={item.disabled}
-            className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors disabled:opacity-40 disabled:hover:bg-transparent ${
-              item.danger ? 'text-danger hover:bg-danger hover:text-white' : 'text-text hover:bg-border'
-            }`}
+            className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors disabled:opacity-40 disabled:hover:bg-transparent ${item.danger ? 'text-danger hover:bg-danger hover:text-white' : 'text-text hover:bg-border'
+              }`}
             onClick={() => {
               item.onClick?.()
               onClose()

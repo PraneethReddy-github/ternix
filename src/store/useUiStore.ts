@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { ActivityView } from '@shared/ui'
 import type { Session } from '@shared/index'
 
@@ -28,6 +29,7 @@ interface UiState {
   sidebarCollapsed: boolean
   paletteOpen: boolean
   sftpOpen: boolean
+  collapsedGroups: number[]
   dialogs: OpenDialog[]
   toast: { id: number; message: string; type: 'info' | 'error' | 'success'; action?: { label: string; onClick: () => void } } | null
 
@@ -36,6 +38,8 @@ interface UiState {
   toggleSidebar: () => void
   setPaletteOpen: (open: boolean) => void
   toggleSftp: () => void
+  toggleGroupCollapsed: (id: number) => void
+  setCollapsedGroups: (ids: number[]) => void
   openDialog: (d: DialogKind) => void
   closeDialog: () => void
   notify: (message: string, type?: 'info' | 'error' | 'success', action?: { label: string; onClick: () => void }) => void
@@ -45,12 +49,13 @@ interface UiState {
 let toastId = 0
 let dialogId = 0
 
-export const useUiStore = create<UiState>((set) => ({
+export const useUiStore = create<UiState>()(persist((set) => ({
   activeView: 'sessions',
   settingsSection: 'general',
   sidebarCollapsed: false,
   paletteOpen: false,
   sftpOpen: false,
+  collapsedGroups: [],
   dialogs: [],
   toast: null,
 
@@ -59,9 +64,18 @@ export const useUiStore = create<UiState>((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   toggleSftp: () => set((s) => ({ sftpOpen: !s.sftpOpen })),
+  toggleGroupCollapsed: (id) => set((s) => ({
+    collapsedGroups: s.collapsedGroups.includes(id)
+      ? s.collapsedGroups.filter((g) => g !== id)
+      : [...s.collapsedGroups, id]
+  })),
+  setCollapsedGroups: (collapsedGroups) => set({ collapsedGroups }),
   openDialog: (dialog) => set((s) => ({ dialogs: [...s.dialogs, { ...dialog, _id: ++dialogId }] })),
   closeDialog: () => set((s) => ({ dialogs: s.dialogs.slice(0, -1) })),
   // The 4s dismissal lives in <Toast>, which pauses it while the pointer is over the toast.
   notify: (message, type = 'info', action) => set({ toast: { id: ++toastId, message, type, action } }),
   dismissToast: () => set({ toast: null })
+}), {
+  name: 'ternix-ui',
+  partialize: (s) => ({ collapsedGroups: s.collapsedGroups })
 }))

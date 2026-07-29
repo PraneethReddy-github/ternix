@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Check, Download, FolderSearch, KeyRound } from 'lucide-react'
 import type { ImportSource, ExportTarget, ImportResult, ImportKeyRef } from '@shared/index'
 import { Modal, Field } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
 import { useUiStore } from '@/store/useUiStore'
 import { useSessionStore } from '@/store/useSessionStore'
 
@@ -164,9 +165,11 @@ export function ExportImportDialog({ onClose }: { onClose: () => void }) {
         ) : (
           <div>
             <Field label="Source format">
-              <select className="tx-input" value={source} onChange={(e) => setSource(e.target.value as ImportSource)}>
-                {IMPORT_SOURCES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </select>
+              <Select
+                value={source}
+                onChange={(v) => setSource(v as ImportSource)}
+                options={IMPORT_SOURCES.map((s) => ({ value: s.id, label: s.label }))}
+              />
             </Field>
             <button className="text-[12px] text-accent mb-2" onClick={browseFile}>Browse for a file…</button>
             <Field label="Paste file contents">
@@ -178,9 +181,11 @@ export function ExportImportDialog({ onClose }: { onClose: () => void }) {
       {tab === 'export' && (
         <div>
           <Field label="Export format">
-            <select className="tx-input" value={target} onChange={(e) => setTarget(e.target.value as ExportTarget)}>
-              {EXPORT_TARGETS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
+            <Select
+              value={target}
+              onChange={(v) => setTarget(v as ExportTarget)}
+              options={EXPORT_TARGETS.map((t) => ({ value: t.id, label: t.label }))}
+            />
           </Field>
           {target === 'ternix' && (
             <label className="flex items-center gap-2 text-[13px] text-text cursor-pointer mt-2">

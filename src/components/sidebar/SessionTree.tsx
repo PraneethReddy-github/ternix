@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Plus, FolderPlus, ArrowDownUp, Search, ArrowRightLeft } from 'lucide-react'
 import type { Group, Session } from '@shared/index'
 import { useSessionStore } from '@/store/useSessionStore'
@@ -13,7 +13,6 @@ import { fuzzyFilter } from '@/utils/fuzzy'
 export function SessionTree() {
   const { sessions, groups, filter, setFilter, sortBy, setSortBy } = useSessionStore()
   const deleteSession = useSessionStore((s) => s.deleteSession)
-  const duplicateSession = useSessionStore((s) => s.duplicateSession)
   const updateSession = useSessionStore((s) => s.updateSession)
   const createGroup = useSessionStore((s) => s.createGroup)
   const updateGroup = useSessionStore((s) => s.updateGroup)
@@ -21,7 +20,8 @@ export function SessionTree() {
   const openDialog = useUiStore((s) => s.openDialog)
   const notify = useUiStore((s) => s.notify)
   const { open, element } = useContextMenu()
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
+  const collapsed = useUiStore((s) => s.collapsedGroups)
+  const toggle = useUiStore((s) => s.toggleGroupCollapsed)
 
   const sorted = useMemo(() => {
     const arr = [...sessions]
@@ -75,7 +75,7 @@ export function SessionTree() {
       { label: 'New session in group', onClick: () => openDialog({ kind: 'newSession', groupId: g.id }) },
       { label: 'New sub-group', onClick: () => promptNewGroup(createGroup, g.id) },
       { label: 'Rename', onClick: () => useUiStore.getState().openDialog({ kind: 'prompt', title: 'Rename Group', label: 'Group name', defaultValue: g.name, onSubmit: (n) => { if (n) updateGroup(g.id, { name: n }) } }) },
-      { label: 'Collapse all', onClick: () => setCollapsed(new Set(groups.map((x) => x.id))) },
+      { label: 'Collapse all', onClick: () => useUiStore.getState().setCollapsedGroups(groups.map((x) => x.id)) },
       { separator: true },
       {
         label: 'Delete group',
@@ -91,13 +91,11 @@ export function SessionTree() {
       }
     ])
 
-  const toggle = (id: number) => setCollapsed((c) => { const n = new Set(c); n.has(id) ? n.delete(id) : n.add(id); return n })
-
   const renderGroup = (group: Group, depth: number): React.ReactNode => {
     const childGroups = groups.filter((g) => g.parent_id === group.id)
     const groupSessions = filtered.filter((s) => s.group_id === group.id)
     if (filter && childGroups.length === 0 && groupSessions.length === 0) return null
-    const isCollapsed = collapsed.has(group.id) && !filter
+    const isCollapsed = collapsed.includes(group.id) && !filter
     return (
       <div key={`g${group.id}`}>
         <GroupFolder

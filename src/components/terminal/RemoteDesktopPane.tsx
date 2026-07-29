@@ -137,8 +137,6 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
           display.onresize = fit
 
           const GUAC_WAITING = 2
-          const GUAC_CONNECTED = 3
-          const GUAC_DISCONNECTED = 5
 
           client.onstatechange = (state: number) => {
             if (disposed) return

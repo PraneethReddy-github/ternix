@@ -40,11 +40,11 @@ export default function App() {
       lastPing = now
       window.ternix.vault.activity()
     }
-    window.addEventListener('mousedown', ping)
-    window.addEventListener('keydown', ping)
+    window.addEventListener('mousedown', ping, true)
+    window.addEventListener('keydown', ping, true)
     return () => {
-      window.removeEventListener('mousedown', ping)
-      window.removeEventListener('keydown', ping)
+      window.removeEventListener('mousedown', ping, true)
+      window.removeEventListener('keydown', ping, true)
     }
   }, [])
 
@@ -118,7 +118,7 @@ export default function App() {
               onClick: () => useUiStore.getState().openSettings('updates')
             })
           }
-        }).catch(() => {})
+        }).catch(() => { })
       }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps

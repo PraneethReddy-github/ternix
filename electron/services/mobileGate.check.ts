@@ -63,4 +63,26 @@ for (const p of ['rdp', 'vnc']) {
 // A dangling jump-host id is left to fail at connect time, like the desktop does.
 assert.ok(gateSession(s({ jump_host_id: 99 }), known, 'prompt', noLookup).ok)
 
+// ── A locked vault blocks anything whose secret lives in it ──────────────────
+{
+  const locked = (over: Partial<GateSession> = {}) =>
+    gateSession(s(over), known, 'prompt', noLookup, new Set(), true)
+  assert.equal(locked().reason, 'vault', 'a stored password is unreadable while locked')
+  assert.equal(locked({ auth_type: 'key', ssh_key_id: 3, hasPassword: false }).reason, 'vault', 'so is a vault key')
+  // Nothing to decrypt — these connect while locked exactly as they do unlocked.
+  assert.ok(locked({ auth_type: 'agent', hasPassword: false }).ok, 'agent auth needs no vault')
+  assert.ok(locked({ protocol: 'telnet', hasPassword: false }).ok, 'a bare telnet host needs no vault')
+  // A secret on telnet is still a secret: it is decrypted the same way.
+  assert.equal(locked({ protocol: 'telnet' }).reason, 'vault', 'a stored telnet password needs the vault too')
+  // The lock must travel down a jump chain, not stop at the first hop.
+  const jump = s({ auth_type: 'key', ssh_key_id: 3, hasPassword: false })
+  assert.equal(
+    gateSession(s({ hasPassword: false, auth_type: 'agent', jump_host_id: 7 }), known, 'prompt', (id) => (id === 7 ? jump : null), new Set(), true).reason,
+    'vault',
+    'a locked vault must block a hop that needs it'
+  )
+  // Unlocked, every one of those is openable — the flag is doing the work, not the shape.
+  assert.ok(gateSession(s(), known, 'prompt', noLookup, new Set(), false).ok)
+}
+
 console.log('mobileGate.check.ts — all assertions passed')

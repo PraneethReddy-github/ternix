@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Protocol, Session, SessionInput, SshKey, AuthType } from '@shared/index'
 import { Modal, Field } from '@/components/ui/Modal'
+import { Toggle as ToggleSwitch } from '@/components/ui/Toggle'
+import { Select } from '@/components/ui/Select'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { useUiStore } from '@/store/useUiStore'
@@ -17,8 +19,6 @@ const PROTOCOLS: { id: Protocol; label: string }[] = [
 const BAUD = [300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
 const TABS = ['Connection', 'Advanced', 'Startup', 'Notes'] as const
 type TabKey = (typeof TABS)[number]
-
-const ACCENTS = ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#39c5cf', '#ff7b72', null]
 
 export function NewSessionDialog({ session, groupId, duplicate, onClose }: { session?: Session; groupId?: number | null; duplicate?: boolean; onClose: () => void }) {
   const groups = useSessionStore((s) => s.groups)
@@ -38,24 +38,24 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
     session
       ? { ...(session as unknown as SessionInput) }
       : {
-          name: '',
-          protocol: 'ssh',
-          host: '',
-          port: 22,
-          username: useSettingsStore.getState().get('ssh.defaultUsername'),
-          auth_type: 'password',
-          group_id: groupId ?? null,
-          keepalive_interval: 30,
-          baud_rate: 9600,
-          data_bits: 8,
-          stop_bits: 1,
-          parity: 'none',
-          flow_control: 'none',
-          terminal_encoding: 'utf-8',
-          env_vars: {},
-          startup_commands: [],
-          tags: []
-        }
+        name: '',
+        protocol: 'ssh',
+        host: '',
+        port: 22,
+        username: useSettingsStore.getState().get('ssh.defaultUsername'),
+        auth_type: 'password',
+        group_id: groupId ?? null,
+        keepalive_interval: 30,
+        baud_rate: 9600,
+        data_bits: 8,
+        stop_bits: 1,
+        parity: 'none',
+        flow_control: 'none',
+        terminal_encoding: 'utf-8',
+        env_vars: {},
+        startup_commands: [],
+        tags: []
+      }
   )
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
 
   const save = async () => {
     if (!form.name.trim()) return notify('Name is required', 'error')
-    
+
     // Check for duplicates
     const isDuplicate = sessions.some(s =>
       (!isEditing || s.id !== session?.id) &&
@@ -135,10 +135,11 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
           </Field>
           <Field label="Session name"><input className="tx-input" value={form.name} onChange={(e) => set('name', e.target.value)} autoFocus /></Field>
           <Field label="Group">
-            <select className="tx-input" value={form.group_id ?? ''} onChange={(e) => set('group_id', e.target.value ? Number(e.target.value) : null)}>
-              <option value="">Ungrouped</option>
-              {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
+            <Select
+              value={form.group_id != null ? String(form.group_id) : ''}
+              onChange={(v) => set('group_id', v ? Number(v) : null)}
+              options={[{ value: '', label: 'Ungrouped' }, ...groups.map((g) => ({ value: String(g.id), label: g.name }))]}
+            />
           </Field>
 
           {(p === 'ssh' || p === 'telnet' || p === 'rdp' || p === 'vnc') && (
@@ -154,12 +155,16 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
           {p === 'ssh' && (
             <>
               <Field label="Authentication">
-                <select className="tx-input" value={form.auth_type ?? 'password'} onChange={(e) => set('auth_type', e.target.value as AuthType)}>
-                  <option value="password">Password</option>
-                  <option value="key">Private Key</option>
-                  <option value="agent">SSH Agent</option>
-                  <option value="keyboard-interactive">Keyboard Interactive</option>
-                </select>
+                <Select
+                  value={form.auth_type ?? 'password'}
+                  onChange={(v) => set('auth_type', v as AuthType)}
+                  options={[
+                    { value: 'password', label: 'Password' },
+                    { value: 'key', label: 'Private Key' },
+                    { value: 'agent', label: 'SSH Agent' },
+                    { value: 'keyboard-interactive', label: 'Keyboard Interactive' }
+                  ]}
+                />
               </Field>
               {form.auth_type === 'password' && (
                 <Field label="Password" hint={session?.hasPassword ? 'Leave blank to keep current password' : undefined}>
@@ -170,11 +175,13 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
                 <>
                   <Field label="Private key">
                     <div className="flex gap-2">
-                      <select className="tx-input flex-1" value={form.ssh_key_id ?? ''} onChange={(e) => set('ssh_key_id', e.target.value ? Number(e.target.value) : null)}>
-                        <option value="">Select a key…</option>
-                        {keys.map((k) => <option key={k.id} value={k.id}>{k.name} ({k.key_type})</option>)}
-                      </select>
-                      <button 
+                      <Select
+                        className="flex-1"
+                        value={form.ssh_key_id != null ? String(form.ssh_key_id) : ''}
+                        onChange={(v) => set('ssh_key_id', v ? Number(v) : null)}
+                        options={[{ value: '', label: 'Select a key…' }, ...keys.map((k) => ({ value: String(k.id), label: `${k.name} (${k.key_type})` }))]}
+                      />
+                      <button
                         type="button"
                         className="tx-btn-ghost border border-border text-[11px] whitespace-nowrap"
                         onClick={async () => {
@@ -215,10 +222,14 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
                 </>
               )}
               <Field label="Jump host (ProxyJump)">
-                <select className="tx-input" value={form.jump_host_id ?? ''} onChange={(e) => set('jump_host_id', e.target.value ? Number(e.target.value) : null)}>
-                  <option value="">None — direct connection</option>
-                  {sessions.filter((s) => s.protocol === 'ssh' && s.id !== session?.id).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <Select
+                  value={form.jump_host_id != null ? String(form.jump_host_id) : ''}
+                  onChange={(v) => set('jump_host_id', v ? Number(v) : null)}
+                  options={[
+                    { value: '', label: 'None — direct connection' },
+                    ...sessions.filter((s) => s.protocol === 'ssh' && s.id !== session?.id).map((s) => ({ value: String(s.id), label: s.name }))
+                  ]}
+                />
               </Field>
             </>
           )}
@@ -232,36 +243,51 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
           {p === 'serial' && (
             <>
               <Field label="COM port">
-                <select className="tx-input" value={form.com_port ?? ''} onChange={(e) => set('com_port', e.target.value)}>
-                  <option value="">Select port…</option>
-                  {ports.map((pt) => <option key={pt.path} value={pt.path}>{pt.path}</option>)}
-                </select>
+                <Select
+                  value={form.com_port ?? ''}
+                  onChange={(v) => set('com_port', v)}
+                  options={[{ value: '', label: 'Select port…' }, ...ports.map((pt) => ({ value: pt.path, label: pt.path }))]}
+                />
               </Field>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Baud rate">
-                  <select className="tx-input" value={form.baud_rate} onChange={(e) => set('baud_rate', Number(e.target.value))}>
-                    {BAUD.map((b) => <option key={b} value={b}>{b}</option>)}
-                  </select>
+                  <Select
+                    value={String(form.baud_rate)}
+                    onChange={(v) => set('baud_rate', Number(v))}
+                    options={BAUD.map((b) => ({ value: String(b), label: String(b) }))}
+                  />
                 </Field>
                 <Field label="Data bits">
-                  <select className="tx-input" value={form.data_bits} onChange={(e) => set('data_bits', Number(e.target.value))}>
-                    <option value={7}>7</option><option value={8}>8</option>
-                  </select>
+                  <Select
+                    value={String(form.data_bits)}
+                    onChange={(v) => set('data_bits', Number(v))}
+                    options={[{ value: '7', label: '7' }, { value: '8', label: '8' }]}
+                  />
                 </Field>
                 <Field label="Stop bits">
-                  <select className="tx-input" value={form.stop_bits} onChange={(e) => set('stop_bits', Number(e.target.value))}>
-                    <option value={1}>1</option><option value={1.5}>1.5</option><option value={2}>2</option>
-                  </select>
+                  <Select
+                    value={String(form.stop_bits)}
+                    onChange={(v) => set('stop_bits', Number(v))}
+                    options={[{ value: '1', label: '1' }, { value: '1.5', label: '1.5' }, { value: '2', label: '2' }]}
+                  />
                 </Field>
                 <Field label="Parity">
-                  <select className="tx-input" value={form.parity} onChange={(e) => set('parity', e.target.value as any)}>
-                    {['none', 'even', 'odd', 'mark', 'space'].map((x) => <option key={x} value={x}>{x}</option>)}
-                  </select>
+                  <Select
+                    value={form.parity as string}
+                    onChange={(v) => set('parity', v as any)}
+                    options={['none', 'even', 'odd', 'mark', 'space'].map((x) => ({ value: x, label: x }))}
+                  />
                 </Field>
                 <Field label="Flow control">
-                  <select className="tx-input" value={form.flow_control} onChange={(e) => set('flow_control', e.target.value as any)}>
-                    <option value="none">None</option><option value="rtscts">RTS/CTS</option><option value="xon/xoff">XON/XOFF</option>
-                  </select>
+                  <Select
+                    value={form.flow_control as string}
+                    onChange={(v) => set('flow_control', v as any)}
+                    options={[
+                      { value: 'none', label: 'None' },
+                      { value: 'rtscts', label: 'RTS/CTS' },
+                      { value: 'xon/xoff', label: 'XON/XOFF' }
+                    ]}
+                  />
                 </Field>
               </div>
             </>
@@ -298,9 +324,11 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
             </>
           )}
           <Field label="Terminal encoding">
-            <select className="tx-input" value={form.terminal_encoding} onChange={(e) => set('terminal_encoding', e.target.value)}>
-              {['utf-8', 'iso-8859-1', 'windows-1252', 'gbk', 'shift_jis'].map((x) => <option key={x} value={x}>{x}</option>)}
-            </select>
+            <Select
+              value={form.terminal_encoding as string}
+              onChange={(v) => set('terminal_encoding', v)}
+              options={['utf-8', 'iso-8859-1', 'windows-1252', 'gbk', 'shift_jis'].map((x) => ({ value: x, label: x }))}
+            />
           </Field>
           <Field label="Environment variables" hint="One KEY=value per line">
             <textarea
@@ -345,12 +373,7 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   return (
     <label className="flex items-center justify-between cursor-pointer">
       <span className="text-[13px] text-text">{label}</span>
-      <button
-        onClick={() => onChange(!checked)}
-        className={cn('w-9 h-5 rounded-full transition-colors relative', checked ? 'bg-accent' : 'bg-surface-2 border border-border')}
-      >
-        <span className={cn('absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all', checked ? 'left-[18px]' : 'left-0.5')} />
-      </button>
+      <ToggleSwitch checked={checked} onChange={onChange} />
     </label>
   )
 }

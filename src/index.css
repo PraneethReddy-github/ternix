@@ -1,3 +1,18 @@
+/* Terminal fonts that ship with Ternix, so the font picker always has real choices rather
+   than only whatever happens to be installed. Latin subsets at regular and bold only —
+   a terminal needs no more, and the whole set costs well under 200 KB. */
+@import '@fontsource/jetbrains-mono/latin-400.css';
+@import '@fontsource/jetbrains-mono/latin-700.css';
+@import '@fontsource/jetbrains-mono/latin-400-italic.css';
+@import '@fontsource/fira-code/latin-400.css';
+@import '@fontsource/fira-code/latin-700.css';
+@import '@fontsource/cascadia-code/latin-400.css';
+@import '@fontsource/cascadia-code/latin-700.css';
+@import '@fontsource/cascadia-code/latin-400-italic.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-700.css';
+@import '@fontsource/ibm-plex-mono/latin-400-italic.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -120,6 +135,25 @@ select:focus {
 
 .tx-spin {
   animation: tx-spin 0.8s linear infinite;
+}
+
+/* Dropdown lists. Short enough to stay out of the way, but it takes the edge off a panel
+   that would otherwise appear fully formed in one frame. The origin is set inline so a list
+   opening upwards grows from its bottom edge instead of away from the control. */
+@keyframes tx-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.tx-pop {
+  animation: tx-pop 110ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .tx-input {

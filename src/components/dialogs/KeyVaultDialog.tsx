@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { KeyRound, Plus, Trash2, Copy, Download, Upload, FolderSearch, Server, Link2 } from 'lucide-react'
 import type { SshKey, KeyGenerateOptions } from '@shared/index'
 import { Modal, Field } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
 import { useUiStore } from '@/store/useUiStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { shortFingerprint } from '@/utils/sshFingerprintDisplay'
@@ -199,11 +200,15 @@ export function KeyVaultDialog({ onClose }: { onClose: () => void }) {
         <div>
           <Field label="Key name"><input className="tx-input" value={gen.name} onChange={(e) => setGen({ ...gen, name: e.target.value })} autoFocus /></Field>
           <Field label="Key type">
-            <select className="tx-input" value={gen.type} onChange={(e) => setGen({ ...gen, type: e.target.value as any })}>
-              <option value="ed25519">ed25519 (recommended)</option>
-              <option value="rsa">RSA 4096</option>
-              <option value="ecdsa">ECDSA 521</option>
-            </select>
+            <Select
+              value={gen.type}
+              onChange={(v) => setGen({ ...gen, type: v as any })}
+              options={[
+                { value: 'ed25519', label: 'ed25519 (recommended)' },
+                { value: 'rsa', label: 'RSA 4096' },
+                { value: 'ecdsa', label: 'ECDSA 521' }
+              ]}
+            />
           </Field>
           <Field label="Comment" hint="Defaults to ternix@hostname"><input className="tx-input" value={gen.comment} onChange={(e) => setGen({ ...gen, comment: e.target.value })} /></Field>
           <Field label="Passphrase" hint="Optional — encrypts the private key"><input type="password" className="tx-input" value={gen.passphrase} onChange={(e) => setGen({ ...gen, passphrase: e.target.value })} /></Field>

@@ -88,7 +88,7 @@ export function SftpPanel() {
         notify(e.message, 'error')
       }
     }
-    ;(toRemote ? remote : local).refresh()
+    ; (toRemote ? remote : local).refresh()
   }
 
   const openEntry = (side: 'local' | 'remote') => (entry: SftpEntry) => {
@@ -235,7 +235,7 @@ export function SftpPanel() {
 
 function Header({ onClose }: { onClose: () => void }) {
   return (
-    <div className="h-8 flex items-center justify-between px-3 border-b border-border bg-bg shrink-0">
+    <div className="h-9 flex items-center justify-between px-3 border-b border-border bg-bg shrink-0">
       <span className="text-[11px] uppercase tracking-wide text-muted font-semibold">SFTP File Manager</span>
       <button className="text-muted hover:text-text" onClick={onClose}><X size={14} /></button>
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Minus, Square, Copy, X, TerminalSquare } from 'lucide-react'
+import { Minus, Square, Copy, X } from 'lucide-react'
 
 /** Frameless custom titlebar with window controls (Windows/Linux). On macOS the OS
  *  traffic lights are inset, so we only render the drag region + title there. */

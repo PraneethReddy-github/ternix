@@ -36,6 +36,8 @@ class SshServiceImpl {
   private pendingHostKey = new Map<string, PendingHostKey>()
   private pendingKbi = new Map<string, PendingKbi>()
   private pendingCredentials = new Map<string, PendingCredentials>()
+  /** Tabs currently connecting with no window behind them. Cleared once the chain settles. */
+  private unattended = new Set<string>()
 
   /** Renderer → main response for a host-key prompt. */
   respondHostKey(tabId: string, decision: 'accept' | 'always' | 'reject'): void {
@@ -67,8 +69,15 @@ class SshServiceImpl {
     p.resolve(response)
   }
 
-  /** Establish a full SSH session bound to a tab (handles jump-host chains). */
-  async spawn(tabId: string, session: Session, cols: number, rows: number): Promise<{ backend: SshHandle; banner?: string }> {
+  /**
+   * Establish a full SSH session bound to a tab (handles jump-host chains).
+   *
+   * `unattended` marks a connection with no window behind it — one a phone opened. The
+   * prompts below are desktop modals, so for these there is nobody to answer them and
+   * waiting is waiting forever; they fail with something the phone can act on instead.
+   */
+  async spawn(tabId: string, session: Session, cols: number, rows: number, unattended = false): Promise<{ backend: SshHandle; banner?: string }> {
+    if (unattended) this.unattended.add(tabId)
     ConnectionManager.pushStatus(tabId, 'connecting', `Connecting to ${session.host}…`)
 
     // ── Credential check ────────────────────────────────────────────────────
@@ -116,7 +125,13 @@ class SshServiceImpl {
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    const client = await this.connectChain(tabId, session, onetimePassword, onetimeKeyId)
+    let client: Client
+    try {
+      client = await this.connectChain(tabId, session, onetimePassword, onetimeKeyId)
+    } finally {
+      // Only the connect leg can raise a prompt; past it the flag would just go stale.
+      this.unattended.delete(tabId)
+    }
 
     const channel = await new Promise<ClientChannel>((resolve, reject) => {
       client.shell(
@@ -236,6 +251,16 @@ class SshServiceImpl {
           finish([secrets.password])
           return
         }
+        // No window, no modal, and the clock has already been stopped just above — so this
+        // would sit here for good. Answer nothing and fail with the reason.
+        if (this.unattended.has(tabId)) {
+          finish([])
+          finishConnect(() => {
+            client.end()
+            reject(new Error('This server asks a login question that can only be answered on the desktop — open the session there once.'))
+          })
+          return
+        }
         this.pendingKbi.set(tabId, { finish })
         Bus.emit('terminal:kbi', {
           tabId,
@@ -321,6 +346,15 @@ class SshServiceImpl {
     }
     if (strictness === 'strict' && !existing) {
       ConnectionManager.pushStatus(tabId, 'error', 'Unknown host key (strict mode)')
+      return false
+    }
+
+    // A phone-opened connection has no modal to raise. Refusing is the safe answer: the
+    // gate already screens out hosts with no pinned key, so reaching here unattended means
+    // the key CHANGED, which is exactly the case nobody should be able to wave through.
+    if (this.unattended.has(tabId)) {
+      const why = existing ? 'Host key has changed since last time — check it on the desktop' : 'Unknown host key'
+      ConnectionManager.pushStatus(tabId, 'error', why)
       return false
     }
 

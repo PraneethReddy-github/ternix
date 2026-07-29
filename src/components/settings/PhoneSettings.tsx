@@ -4,6 +4,7 @@ import { Trash2, RefreshCw, Plus, Download, CheckCircle2, ShieldCheck, Info, X, 
 import type { CloudflaredStatus, MobileQuickCommand, MobileStatus } from '@shared/index'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { Section, Row, NumberSetting } from './SettingControls'
+import { Toggle } from '@/components/ui/Toggle'
 import { cn } from '@/utils/cn'
 
 type ConnectMode = 'local' | 'tunnel'
@@ -36,7 +37,6 @@ export function PhoneSettings() {
   const [justLinked, setJustLinked] = useState(false)
   /** The QR stays blurred until asked for — it is a live key, and screens get shoulder-surfed. */
   const [revealed, setRevealed] = useState(false)
-  const [copied, setCopied] = useState<string | null>(null)
   const [mode, setMode] = useState<ConnectMode>('local')
   const prevDeviceCount = useRef<number | null>(null)
   /** Guards against two overlapping mints; a second code would invalidate the first. */
@@ -49,8 +49,8 @@ export function PhoneSettings() {
   const activeUrl = mode === 'tunnel' ? tunnelUrl : localUrl
 
   useEffect(() => {
-    window.ternix.mobile.status().then(setStatus).catch(() => {})
-    window.ternix.mobile.cloudflaredStatus().then(setCf).catch(() => {})
+    window.ternix.mobile.status().then(setStatus).catch(() => { })
+    window.ternix.mobile.cloudflaredStatus().then(setCf).catch(() => { })
     const offStatus = window.ternix.mobile.onStatus(setStatus)
     const offCf = window.ternix.mobile.onCloudflared(setCf)
     return () => {
@@ -83,28 +83,27 @@ export function PhoneSettings() {
     }
   }, [])
 
-  // Live countdown — tick every second.
+  /**
+   * Live countdown, and the thing that mints the next code when this one dies.
+   *
+   * Both jobs ride the same one-second tick on purpose. Expiry used to be a lone setTimeout
+   * armed for the code's whole lifetime, which fires exactly once: a mint that failed, or a
+   * machine that slept through the timer, left the panel parked on 0:00 showing a QR that no
+   * longer worked and would never refresh. A tick that keeps checking simply tries again.
+   */
   useEffect(() => {
     if (!pair) {
       setRemaining(0)
       return
     }
-    const tick = () => setRemaining(Math.max(0, pair.expiresAt - Date.now()))
+    const tick = () => {
+      const left = Math.max(0, pair.expiresAt - Date.now())
+      setRemaining(left)
+      if (left === 0) generateCode()
+    }
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
-  }, [pair])
-
-  // Auto-refresh on expiry.
-  useEffect(() => {
-    if (!pair) return
-    const ms = pair.expiresAt - Date.now()
-    if (ms <= 0) {
-      generateCode()
-      return
-    }
-    const t = setTimeout(generateCode, ms)
-    return () => clearTimeout(t)
   }, [pair, generateCode])
 
   // Auto-generate a new code once a device links.
@@ -159,12 +158,6 @@ export function PhoneSettings() {
     }
   }, [])
 
-  const copy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text)
-    setCopied(key)
-    setTimeout(() => setCopied(null), 1200)
-  }
-
   const toggleServer = () =>
     run(async () => {
       if (status?.running) {
@@ -185,17 +178,10 @@ export function PhoneSettings() {
     <div>
       <Section title="Phone Access">
         <p className="text-[12px] text-muted -mt-1 mb-1">
-          Runs a small web terminal your phone can open in its browser. Linking is by QR scan, the
-          connection is end-to-end encrypted, and any phone can be unlinked at any time.
+          A web terminal your phone opens in its browser. Link by QR scan; unlink any phone anytime.
         </p>
         <Row label="Enable phone access" hint={running ? `Listening on port ${status?.port}` : 'Off — no network port is open'}>
-          <button
-            onClick={toggleServer}
-            disabled={busy}
-            className={cn('w-9 h-5 rounded-full relative transition-colors', running ? 'bg-accent' : 'bg-surface-2 border border-border')}
-          >
-            <span className={cn('absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all', running ? 'left-[18px]' : 'left-0.5')} />
-          </button>
+          <Toggle checked={running} onChange={toggleServer} disabled={busy} />
         </Row>
         <Row label="Port" hint="Restart phone access after changing">
           <NumberSetting k="mobile.port" min={1024} max={65535} />
@@ -226,7 +212,7 @@ export function PhoneSettings() {
           {mode === 'tunnel' && tunnelUrl && (
             <Row label="Tunnel active" hint="Stop when you no longer need remote access">
               <button
-                className="tx-btn"
+                className="tx-btn text-red-400"
                 disabled={busy}
                 onClick={() => {
                   setMode('local')
@@ -240,21 +226,6 @@ export function PhoneSettings() {
 
           {activeUrl && (
             <>
-              <Row label="Address" hint={mode === 'tunnel' ? 'Works from any network' : 'Same Wi-Fi only'}>
-                <div className="flex items-center gap-2">
-                  <code className="text-[12px] text-accent select-all break-all">{activeUrl}</code>
-                  <button className="tx-btn-ghost text-[11px]" onClick={() => copy(activeUrl, 'addr')}>
-                    {copied === 'addr' ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
-              </Row>
-
-              <div className="flex items-center gap-1.5 -mt-1 mb-1">
-                <ShieldCheck size={13} className="text-green-400 shrink-0" />
-                <span className="text-[12px] text-text">End-to-end encrypted</span>
-                <SecurityInfo mode={mode} />
-              </div>
-
               {justLinked ? (
                 <div className="text-[12px] text-green-400">✓ Phone linked — generating a new code…</div>
               ) : pair ? (
@@ -291,10 +262,9 @@ export function PhoneSettings() {
                   )}
                   <div className="min-w-0">
                     <div className="text-[13px] text-text font-medium">Scan with your phone&apos;s camera</div>
-                    <div className="text-[12px] text-muted mt-0.5">
-                      Open the link it offers. Scanning is what hands your phone its encryption key, so
-                      the key is never sent over the network.
-                    </div>
+                    {/* Why scanning matters is one tap away under the ⓘ — repeating it out here is
+                        half of what made this panel a wall of text. */}
+                    <div className="text-[12px] text-muted mt-0.5">Then open the link it offers.</div>
                     <div className="flex items-center gap-3 mt-2.5">
                       <div className={cn('text-[11px] tabular-nums', remaining < 15000 ? 'text-red-400' : 'text-muted')}>
                         {formatCountdown(remaining)} remaining
@@ -306,7 +276,7 @@ export function PhoneSettings() {
                         />
                       </div>
                     </div>
-                    <div className="text-[10px] text-muted mt-1">Single use · auto-refreshes on expiry</div>
+                    <div className="text-[10px] text-muted mt-1">Single use · refreshes itself</div>
                     <button className="tx-btn-ghost text-[11px] mt-1.5 -ml-2" onClick={generateCode}>
                       <RefreshCw size={11} /> New code
                     </button>
@@ -315,6 +285,23 @@ export function PhoneSettings() {
               ) : (
                 <div className="text-[12px] text-muted">Generating code…</div>
               )}
+
+              {/* Under the QR, where it reads as a footnote rather than a step. The QR carries
+                  this address plus the pairing secret, so this line is only ever "which address
+                  am I on" — worth showing when a machine has several, never worth acting on. */}
+              <div className="flex items-start justify-between gap-4 pt-3 mt-3 border-t border-border">
+                <div className="min-w-0">
+                  <code className="text-[11px] text-muted select-all break-all">{activeUrl}</code>
+                  <div className="text-[11px] text-muted">
+                    {mode === 'tunnel' ? 'Works from any network' : 'Same Wi-Fi only'}
+                  </div>
+                </div>
+                <span className="flex items-center gap-1 shrink-0">
+                  <ShieldCheck size={12} className="text-green-400 shrink-0" />
+                  <span className="text-[11px] text-text">End-to-end encrypted</span>
+                  <SecurityInfo mode={mode} />
+                </span>
+              </div>
             </>
           )}
 
@@ -331,21 +318,23 @@ export function PhoneSettings() {
 
       <Section title={`Linked Phones${status?.devices.length ? ` (${status.devices.length})` : ''}`}>
         {status?.devices.length ? (
-          status.devices.map((d) => (
-            <div key={d.id} className="flex items-center justify-between gap-3 py-1.5 border-b border-border last:border-0">
-              <div className="min-w-0">
-                <div className="text-[13px] text-text">{d.name}</div>
-                <div className="text-[11px] text-muted">Linked {relative(d.createdAt)} · last used {relative(d.lastSeen)}</div>
+          <div className="max-h-56 overflow-y-auto pr-1">
+            {status.devices.map((d) => (
+              <div key={d.id} className="flex items-center justify-between gap-3 py-1.5 border-b border-border last:border-0">
+                <div className="min-w-0">
+                  <div className="text-[13px] text-text">{d.name}</div>
+                  <div className="text-[11px] text-muted">Linked {relative(d.createdAt)} · last used {relative(d.lastSeen)}</div>
+                </div>
+                <button
+                  className="tx-btn text-red-400"
+                  onClick={() => run(async () => setStatus(await window.ternix.mobile.revokeDevice(d.id)))}
+                  title="Unlink this phone"
+                >
+                  <Trash2 size={13} /> Unlink
+                </button>
               </div>
-              <button
-                className="tx-btn text-red-400"
-                onClick={() => run(async () => setStatus(await window.ternix.mobile.revokeDevice(d.id)))}
-                title="Unlink this phone"
-              >
-                <Trash2 size={13} /> Unlink
-              </button>
-            </div>
-          ))
+            ))}
+          </div>
         ) : (
           <p className="text-[12px] text-muted">No phones linked yet.</p>
         )}
@@ -380,8 +369,7 @@ function TunnelSetup({
   return (
     <div className="space-y-2 mb-3">
       <p className="text-[12px] text-muted">
-        A Cloudflare tunnel publishes phone access over HTTPS, so your phone can connect from mobile
-        data or any other network — not just the same Wi-Fi.
+        Publishes phone access over HTTPS, so your phone can connect from any network — not just this Wi-Fi.
       </p>
 
       {cf && !cf.supported && (
@@ -391,17 +379,16 @@ function TunnelSetup({
       )}
 
       {cf?.supported && !cf.installed && !installing && (
-        <div className="rounded border border-border bg-surface-2 p-3 space-y-2">
-          <div className="text-[12px] text-text">
-            One-time setup: Ternix needs to download <code>cloudflared</code> (~40 MB). It is stored with
-            Ternix&apos;s own data, needs no admin rights, and survives app updates.
+        <div className="flex items-center justify-between gap-3 rounded border border-border bg-surface-2 px-3 py-2.5">
+          <div className="text-[12px] text-muted min-w-0">
+            One-time download of <code>cloudflared</code>, ~40 MB. No admin rights needed.
           </div>
           <button
-            className="tx-btn-primary"
+            className="tx-btn-primary shrink-0"
             disabled={busy}
             onClick={() => run(async () => setCf(await window.ternix.mobile.installCloudflared()))}
           >
-            <Download size={13} /> Set up tunnelling
+            <Download size={13} /> Set up
           </button>
         </div>
       )}
@@ -418,7 +405,7 @@ function TunnelSetup({
       {cf?.installed && !installing && (
         <div className="flex items-center gap-2 text-[11px] text-muted">
           <CheckCircle2 size={12} className="text-green-400" />
-          cloudflared ready{cf.managed ? ' (installed by Ternix)' : ' (found on this system)'}
+          cloudflared ready
           {cf.managed && (
             <button
               className="tx-btn-ghost text-[11px]"
@@ -585,30 +572,32 @@ function QuickCommands() {
   return (
     <Section title="Quick Commands">
       <p className="text-[12px] text-muted -mt-1">
-        Shown on the phone under the ⌘ button, next to your terminal snippets. Handy for the commands
-        you would rather not type on a touchscreen.
+        One-tap commands, shown on the phone under the ⌘ button beside your snippets.
       </p>
 
-      {list.map((q, i) => (
-        <div key={i} className="flex items-center gap-2">
-          {/* tx-input is w-full, so both need an explicit basis or the label eats the row. */}
-          <input
-            className="tx-input shrink-0 !w-[130px]"
-            placeholder="Label"
-            value={q.label}
-            onChange={(e) => patch(i, { label: e.target.value })}
-          />
-          <input
-            className="tx-input flex-1 min-w-0 font-mono text-[12px]"
-            placeholder="docker ps -a"
-            value={q.command}
-            onChange={(e) => patch(i, { command: e.target.value })}
-          />
-          <button className="tx-btn text-red-400 shrink-0" onClick={() => save(list.filter((_, n) => n !== i))}>
-            <Trash2 size={13} />
-          </button>
-        </div>
-      ))}
+      {/* Same reason as the phone list: this grows without bound, the panel should not. */}
+      <div className="max-h-56 overflow-y-auto space-y-3 pr-1">
+        {list.map((q, i) => (
+          <div key={i} className="flex items-center gap-2">
+            {/* tx-input is w-full, so both need an explicit basis or the label eats the row. */}
+            <input
+              className="tx-input shrink-0 !w-[130px]"
+              placeholder="Label"
+              value={q.label}
+              onChange={(e) => patch(i, { label: e.target.value })}
+            />
+            <input
+              className="tx-input flex-1 min-w-0 font-mono text-[12px]"
+              placeholder="docker ps -a"
+              value={q.command}
+              onChange={(e) => patch(i, { command: e.target.value })}
+            />
+            <button className="tx-btn text-red-400 shrink-0" onClick={() => save(list.filter((_, n) => n !== i))}>
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+      </div>
 
       <button className="tx-btn" onClick={() => save([...list, { label: '', command: '' }])}>
         <Plus size={13} /> Add command

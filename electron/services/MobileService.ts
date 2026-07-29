@@ -13,6 +13,7 @@ import { redeemPairing, type PairState } from './pairingGate'
 import { b64, open, pairKey, seal, unb64 } from './mobileCrypto'
 import { blockMessage, gateSession, type GateSession } from './mobileGate'
 import { CloudflaredService } from './CloudflaredService'
+import { CryptoService } from './CryptoService'
 import { ConnectionManager } from './ConnectionManager'
 import { spawnTerminal } from './SpawnService'
 import { RecordingService } from './RecordingService'
@@ -57,6 +58,10 @@ const ASSETS: Record<string, { spec: string; type: string }> = {
   '/xterm.css': { spec: '@xterm/xterm/css/xterm.css', type: 'text/css' },
   '/addon-fit.js': { spec: '@xterm/addon-fit/lib/addon-fit.js', type: 'application/javascript' },
   '/nacl.js': { spec: 'tweetnacl/nacl-fast.min.js', type: 'application/javascript' }
+}
+const ICONS: Record<string, { file: string; type: string }> = {
+  '/icon.svg': { file: 'icon.svg', type: 'image/svg+xml' },
+  '/icon.png': { file: 'icon.png', type: 'image/png' }
 }
 
 /**
@@ -322,6 +327,16 @@ class MobileServiceImpl {
       }
       return
     }
+    const icon = ICONS[url.pathname]
+    if (icon) {
+      try {
+        const body = await readFile(join(__dirname, '../../resources', icon.file))
+        res.writeHead(200, { 'Content-Type': icon.type, 'Cache-Control': 'max-age=86400' }).end(body)
+      } catch {
+        res.writeHead(404).end('icon missing')
+      }
+      return
+    }
 
     if (url.pathname === '/' || url.pathname === '/index.html') {
       try {
@@ -379,7 +394,9 @@ class MobileServiceImpl {
       (id) => {
         const j = sessionsRepo.get(id)
         return j ? this.toGate(j) : null
-      }
+      },
+      new Set(),
+      CryptoService.isLocked()
     )
   }
 
@@ -391,9 +408,10 @@ class MobileServiceImpl {
     const strictness = settingsRepo.get('ssh.hostKeyStrictness') ?? 'prompt'
     const all = sessionsRepo.list()
     const byId = new Map(all.map((s) => [s.id, this.toGate(s)]))
+    const vaultLocked = CryptoService.isLocked()
 
     const sessions = all.map((s) => {
-      const v = gateSession(this.toGate(s), (h, p) => !!knownHostsRepo.get(h, p), strictness, (id) => byId.get(id) ?? null)
+      const v = gateSession(this.toGate(s), (h, p) => !!knownHostsRepo.get(h, p), strictness, (id) => byId.get(id) ?? null, new Set(), vaultLocked)
       return {
         id: s.id,
         name: s.name,
@@ -432,9 +450,9 @@ class MobileServiceImpl {
     const send = (msg: unknown) => {
       if (session && ws.readyState === ws.OPEN) ws.send(seal(msg, session))
     }
-    // Every socket seals under its own per-connection key, so a broadcast has to go back
-    // through each one rather than sending a single shared string.
-    ;(ws as any).__send = send
+      // Every socket seals under its own per-connection key, so a broadcast has to go back
+      // through each one rather than sending a single shared string.
+      ; (ws as any).__send = send
 
     const timeout = setTimeout(() => {
       if (!session) ws.close(4401, 'handshake timeout')
@@ -459,7 +477,7 @@ class MobileServiceImpl {
       // genuinely the paired device, which stops an eavesdropper answering in its place.
       ws.send(seal({ epub: b64(mine.publicKey) }, found.key))
       session = nacl.box.before(theirs, mine.secretKey)
-      ;(ws as any).__deviceId = found.device.id
+        ; (ws as any).__deviceId = found.device.id
       clearTimeout(timeout)
       this.touchDevice(found.device.id)
       Bus.emit('mobile:status', this.status())
@@ -494,13 +512,14 @@ class MobileServiceImpl {
           const id = `mobile-${randomBytes(6).toString('hex')}`
           const cols = Math.max(1, Number(m.cols) || 80)
           const rows = Math.max(1, Number(m.rows) || 24)
+          paneId = id
           const r = await spawnTerminal({ tabId: id, sessionId: m.sessionId ?? null, cols, rows }, null)
           if (!r.ok) {
+            paneId = null
             send({ t: 'error', message: r.error ?? 'Connection failed' })
             break
           }
           this.ownPanes.add(id)
-          paneId = id
           ConnectionManager.resize(id, cols, rows)
           send({
             t: 'attached',

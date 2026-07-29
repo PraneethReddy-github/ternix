@@ -72,7 +72,7 @@ class RdpGatewayServiceImpl {
         this.guac = new GuacamoleLite(
           {
             server: http,
-            handleProtocols: (protocols: any) => 'guacamole'
+            handleProtocols: (_protocols: any) => 'guacamole'
           },
           { host: this.guacdHost(), port: this.guacdPort() },
           {

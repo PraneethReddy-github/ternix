@@ -113,13 +113,8 @@ export function useTerminal(pane: Pane): TerminalController {
     }
 
     // Optional GPU renderer.
-    // Ligatures (Fira Code / JetBrains Mono →, ⇒, ≥ …) only render in xterm's DOM
-    // renderer, which shapes real text runs. The WebGL/canvas renderers draw glyph-by-glyph
-    // and can't. The addon-ligatures package needs Node fs in the renderer (disabled here
-    // for security), so we deliver ligatures by staying on the DOM renderer when enabled.
     let isDisposed = false;
-    const ligatures = s.getBool('appearance.ligatures')
-    if (!ligatures && s.get('advanced.rendererType') === 'webgl' && s.getBool('advanced.hardwareAcceleration')) {
+    if (s.get('advanced.rendererType') === 'webgl' && s.getBool('advanced.hardwareAcceleration')) {
       import('@xterm/addon-webgl')
         .then(({ WebglAddon }) => {
           if (isDisposed) return;
@@ -131,7 +126,7 @@ export function useTerminal(pane: Pane): TerminalController {
             /* fall back to canvas/dom */
           }
         })
-        .catch(() => {})
+        .catch(() => { })
     }
 
     fit()
@@ -229,7 +224,7 @@ export function useTerminal(pane: Pane): TerminalController {
             window.ternix.recordings
               .isRecording(pane.id)
               .then((rec) => rec && useTabStore.getState().setPaneRecording(pane.id, true))
-              .catch(() => {})
+              .catch(() => { })
           }
         })
         .catch((err) => failed(err.message, '\x1b[31m'))
@@ -251,7 +246,7 @@ export function useTerminal(pane: Pane): TerminalController {
       setPaneState(pane.id, 'disconnected', reason)
     })
 
-    term.onKey(({ key, domEvent }) => {
+    term.onKey(({ domEvent }) => {
       if (domEvent.ctrlKey && domEvent.key.toLowerCase() === 'r') {
         const tabs = useTabStore.getState().tabs
         let state: string | undefined
@@ -288,7 +283,7 @@ export function useTerminal(pane: Pane): TerminalController {
       offExit()
       // A detached pane's connection was handed to another window — leave it alive.
       if (!detachedPanes.delete(pane.id)) {
-        window.ternix.terminal.kill(pane.id).catch(() => {})
+        window.ternix.terminal.kill(pane.id).catch(() => { })
       }
       term.dispose()
       if (terminal.current === term) {
@@ -305,6 +300,21 @@ export function useTerminal(pane: Pane): TerminalController {
   useEffect(() => {
     if (terminal.current) terminal.current.options.theme = toXtermTheme(useThemeStore.getState().active())
   }, [themeId])
+
+  const fontFamily = useSettingsStore((s) => s.get('appearance.fontFamily'))
+  const fontSize = useSettingsStore((s) => s.get('appearance.fontSize'))
+  const lineHeight = useSettingsStore((s) => s.get('appearance.lineHeight'))
+  const letterSpacing = useSettingsStore((s) => s.get('appearance.letterSpacing'))
+  useEffect(() => {
+    const term = terminal.current
+    if (!term) return
+    term.options.fontFamily = fontFamily
+    term.options.fontSize = Number(fontSize) || 14
+    term.options.lineHeight = Number(lineHeight) || 1.2
+    term.options.letterSpacing = Number(letterSpacing) || 0
+    fit()
+    window.ternix.terminal.resize(pane.id, term.cols, term.rows)
+  }, [fontFamily, fontSize, lineHeight, letterSpacing])
 
   return { containerRef, terminal, search, fit, focus, paste, clear }
 }

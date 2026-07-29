@@ -8,7 +8,7 @@
  * the phone only offers sessions that are already answerable, and says why for the rest.
  */
 
-export type BlockReason = 'password' | 'key' | 'hostkey' | 'protocol'
+export type BlockReason = 'password' | 'key' | 'hostkey' | 'protocol' | 'vault'
 
 export interface GateSession {
   protocol: string
@@ -30,7 +30,8 @@ const MESSAGES: Record<BlockReason, string> = {
   password: 'No saved password — open it once on the desktop',
   key: 'No SSH key linked — open it once on the desktop',
   hostkey: 'Host key not trusted yet — open it once on the desktop',
-  protocol: 'Not a terminal session'
+  protocol: 'Not a terminal session',
+  vault: 'Vault is locked — unlock Ternix on the desktop'
 }
 
 export function blockMessage(reason: BlockReason): string {
@@ -41,15 +42,23 @@ export function blockMessage(reason: BlockReason): string {
  * `knownHost` reports whether a host key is already pinned for a host/port.
  * `lookup` resolves a jump-host id to another session, so a chain is only openable when
  * every hop in it is.
+ * `vaultLocked` is the desktop vault's state — see the check inside.
  */
 export function gateSession(
   s: GateSession,
   knownHost: (host: string, port: number) => boolean,
   strictness: string,
   lookup: (id: number) => GateSession | null,
-  seen: Set<number> = new Set()
+  seen: Set<number> = new Set(),
+  vaultLocked = false
 ): GateVerdict {
   if (s.protocol === 'rdp' || s.protocol === 'vnc') return { ok: false, reason: 'protocol' }
+
+  // A locked vault cannot hand over a stored password, passphrase or private key, and the
+  // only way to unlock it is a desktop modal. Without this the session looks openable and
+  // then dies mid-connect with a message about a vault the phone cannot do anything about.
+  // Sessions holding no secret at all (agent auth, a bare telnet host) are unaffected.
+  if (vaultLocked && (s.hasPassword || s.ssh_key_id != null)) return { ok: false, reason: 'vault' }
 
   // Local, telnet and serial either need no secret or prompt inside the terminal itself,
   // where a phone can answer perfectly well.
@@ -69,7 +78,7 @@ export function gateSession(
     const jump = lookup(s.jump_host_id)
     // A dangling jump-host id fails at connect time on the desktop too; let it through
     // so the phone shows the same error rather than silently hiding the session.
-    if (jump) return gateSession(jump, knownHost, strictness, lookup, seen)
+    if (jump) return gateSession(jump, knownHost, strictness, lookup, seen, vaultLocked)
   }
 
   return { ok: true }

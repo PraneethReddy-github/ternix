@@ -43,7 +43,7 @@ export async function spawnTerminal(opts: SpawnOptions, owner: number | null): P
     let banner: string | undefined
     switch (session.protocol) {
       case 'ssh': {
-        const r = await SshService.spawn(tabId, session, cols, rows)
+        const r = await SshService.spawn(tabId, session, cols, rows, owner == null)
         ConnectionManager.register(tabId, r.backend, session.name, session.host, session.id, owner)
         banner = r.banner
         await autoStartTunnels(tabId, session.id)
