@@ -344,7 +344,7 @@ export function useTerminal(pane: Pane): TerminalController {
     return () => {
       cancelled = true
     }
-  }, [fontFamily, fontSize, lineHeight, letterSpacing])
+  }, [fontFamily, fontSize, lineHeight, letterSpacing, pane.id])
 
   return { containerRef, terminal, search, fit, focus, paste, clear }
 }

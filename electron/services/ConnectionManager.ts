@@ -66,6 +66,8 @@ class ConnectionManagerImpl {
   private cwds = new Map<string, string>()
   /** Recent output per pane, for clients that attach after a pane is already running. */
   private scrollback = new Map<string, string>()
+  /** Geometry reported for a tab whose backend is still being spawned (see resize). */
+  private pendingGeometry = new Map<string, { cols: number; rows: number }>()
   private taps = new Set<(e: TapEvent) => void>()
 
   /** Subscribe to terminal traffic from outside the renderer. Returns an unsubscribe fn. */
@@ -103,14 +105,22 @@ class ConnectionManagerImpl {
 
   register(tabId: string, backend: TerminalBackend, sessionName: string, host: string | null, sessionId: number | null, owner: number | null = null): void {
     const logId = logRepo.start(sessionId, sessionName, host)
-    // Placeholder geometry — the first client to fit its terminal overwrites it via resize().
-    this.entries.set(tabId, { backend, logId, sessionName, host, sessionId, owner, cols: 80, rows: 24 })
+    // Geometry the client already reported while we were still connecting, else a placeholder.
+    const geo = this.pendingGeometry.get(tabId)
+    this.pendingGeometry.delete(tabId)
+    this.entries.set(tabId, { backend, logId, sessionName, host, sessionId, owner, cols: geo?.cols ?? 80, rows: geo?.rows ?? 24 })
+    if (geo) this.resize(tabId, geo.cols, geo.rows)
   }
 
   /** Resize a backend and remember the geometry so other clients can match it. */
   resize(tabId: string, cols: number, rows: number): void {
     const e = this.entries.get(tabId)
-    if (!e) return
+    // Spawning is async, so the client's real geometry usually lands before the backend does.
+    // Dropping it leaves the shell wrapping at the cols we guessed, which corrupts redraws.
+    if (!e) {
+      this.pendingGeometry.set(tabId, { cols, rows })
+      return
+    }
     e.cols = cols
     e.rows = rows
     e.backend.resize(cols, rows)
@@ -206,6 +216,8 @@ class ConnectionManagerImpl {
     this.recorders.delete(tabId)
     this.cwds.delete(tabId)
     this.scrollback.delete(tabId)
+    // A connection that failed to spawn never consumed its pending geometry.
+    this.pendingGeometry.delete(tabId)
   }
 
   private finishLog(tabId: string, reason: string): void {
