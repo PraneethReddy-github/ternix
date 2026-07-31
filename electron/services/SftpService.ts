@@ -21,6 +21,15 @@ import { Bus } from './bus'
  */
 const SFTP_CHUNK = 256 * 1024 - 2 * 1024 // 260096
 
+/**
+ * Minimum window a transfer rate is measured over, and the progress emit throttle, so every
+ * event carries a rate sampled over at least this long. Anything shorter measures the write
+ * stream's buffer filling rather than the wire: `transferred` counts bytes handed to the
+ * stream, and the first chunk lands a millisecond after it opens — 260 KB in 5 ms reads as
+ * 52 MB/s, and with maxConcurrent files churning, the status bar added those up.
+ */
+const SPEED_SAMPLE_MS = 250
+
 function modeToPermissions(mode: number): string {
   const types = ['---', '--x', '-w-', '-wx', 'r--', 'r-x', 'rw-', 'rwx']
   const o = (mode >> 6) & 7
@@ -313,15 +322,22 @@ class SftpServiceImpl {
     this.transfers.set(transferId, state)
 
     let transferred = 0
-    let lastEmit = Date.now()
-    let lastBytes = 0
+    let sampledAt = Date.now()
+    let sampledBytes = 0
+    let bps = 0
 
     const emit = (status: TransferProgress['status'], error?: string) => {
       const now = Date.now()
-      const elapsed = (now - lastEmit) / 1000 || 1
-      const bps = status === 'active' ? (transferred - lastBytes) / elapsed : 0
-      const remaining = total - transferred
-      const eta = bps > 0 ? remaining / bps : 0
+      const window = now - sampledAt
+      // Re-sample only once the window is wide enough to mean anything; until then carry the
+      // last rate (0 for the first chunk) instead of dividing by ~nothing.
+      if (status === 'active' && window >= SPEED_SAMPLE_MS) {
+        bps = Math.max(0, Math.round(((transferred - sampledBytes) * 1000) / window))
+        sampledAt = now
+        sampledBytes = transferred
+      }
+      const rate = status === 'active' ? bps : 0
+      const eta = rate > 0 ? (total - transferred) / rate : 0
       Bus.emit('sftp:progress', {
         transferId,
         direction,
@@ -330,15 +346,11 @@ class SftpServiceImpl {
         remotePath,
         transferred,
         total,
-        bytesPerSecond: Math.max(0, Math.round(bps)),
+        bytesPerSecond: rate,
         etaSeconds: Math.round(eta),
         status,
         error
       } satisfies TransferProgress)
-      if (status === 'active') {
-        lastEmit = now
-        lastBytes = transferred
-      }
     }
 
     emit('pending')
@@ -347,7 +359,7 @@ class SftpServiceImpl {
       let firstChunk = true
       read.on('data', (chunk: Buffer) => {
         transferred += chunk.length
-        if (firstChunk || Date.now() - lastEmit > 200) {
+        if (firstChunk || Date.now() - sampledAt >= SPEED_SAMPLE_MS) {
           firstChunk = false
           emit('active')
         }

@@ -34,6 +34,7 @@ const api: TernixApi = {
   },
   terminal: {
     spawn: (opts) => invoke('terminal:spawn', opts),
+    shells: () => invoke('terminal:shells'),
     write: (tabId, data) => ipcRenderer.send('terminal:write', tabId, data),
     resize: (tabId, cols, rows) => ipcRenderer.send('terminal:resize', tabId, cols, rows),
     kill: (tabId) => invoke('terminal:kill', tabId),

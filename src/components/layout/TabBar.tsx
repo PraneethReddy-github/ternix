@@ -10,6 +10,7 @@ import { connectSession } from '@/components/sidebar/SessionCard'
 import { paneActions } from '@/hooks/terminalRegistry'
 import { cn } from '@/utils/cn'
 import type { Tab } from '@shared/ui'
+import type { ShellInfo } from '@shared/index'
 
 /**
  * How stale the last in-window dragover may be at dragend and still count as "dropped
@@ -127,6 +128,26 @@ export function TabBar({ group = 0 }: { group?: 0 | 1 }) {
     else newTab({ protocol: 'local', title: 'Local Shell', group })
   }
 
+  // Right-clicking "+" offers the shells this machine actually has, so cmd and PowerShell can
+  // be open side by side without editing general.defaultShell between tabs. Empty off Windows
+  // (see PtyService.detectShells), where the menu then never opens and "+" is all there is.
+  const [shells, setShells] = useState<ShellInfo[]>([])
+  useEffect(() => {
+    window.ternix.terminal.shells().then(setShells).catch(() => { })
+  }, [])
+
+  const handleNewTabMenu = (e: React.MouseEvent) => {
+    if (shells.length < 2) return
+    if (shownId) setActive(shownId)
+    open(
+      e,
+      shells.map((sh) => ({
+        label: sh.name,
+        onClick: () => newTab({ protocol: 'local', title: sh.name, shell: sh.path, group })
+      }))
+    )
+  }
+
   return (
     <div
       data-tabbar={group}
@@ -223,8 +244,9 @@ export function TabBar({ group = 0 }: { group?: 0 | 1 }) {
       )}
       <button
         className="shrink-0 px-3 text-muted hover:text-text hover:bg-surface-2 border-l border-border"
-        title="New tab"
+        title={shells.length > 1 ? 'New tab (right-click to pick a shell)' : 'New tab'}
         onClick={handleNewTab}
+        onContextMenu={handleNewTabMenu}
       >
         <Plus size={16} />
       </button>

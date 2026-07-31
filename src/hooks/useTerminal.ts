@@ -74,6 +74,12 @@ export function useTerminal(pane: Pane): TerminalController {
       letterSpacing: Number(s.get('appearance.letterSpacing')) || 0,
       cursorStyle: (s.get('appearance.cursorStyle') as 'block' | 'underline' | 'bar') || 'block',
       cursorBlink: s.getBool('appearance.cursorBlink'),
+      // TUIs (Claude Code, htop, anything with box drawing or an emoji) mix in glyphs the
+      // terminal font has no cell-width version of, so the per-glyph fallback rasterizes
+      // something wider than the cell and it paints over its neighbour. Scale those back
+      // into their cell instead — with the GPU renderer an overflowing glyph also bleeds
+      // into rows the scroll doesn't repaint, which is what leaves streaks behind.
+      rescaleOverlappingGlyphs: true,
       scrollback: s.getNum('terminal.scrollback') || 5000,
       allowProposedApi: true,
       macOptionIsMeta: true,
@@ -208,9 +214,12 @@ export function useTerminal(pane: Pane): TerminalController {
     }
 
     const doSpawn = () => {
-      // For local shells, honour the user's configured default shell (e.g. powershell.exe
-      // on Windows, /bin/zsh on Unix). Read fresh so a settings change applies on reconnect.
-      const shellPref = useSettingsStore.getState().get('general.defaultShell').trim()
+      // A pane opened for a specific shell (the tab bar's picker) keeps that shell for its
+      // whole life — a Ctrl+R reconnect in a cmd tab must not come back as PowerShell just
+      // because the global default says so. Otherwise honour the configured default shell
+      // (e.g. powershell.exe on Windows, /bin/zsh on Unix), read fresh so a settings change
+      // applies on reconnect.
+      const shellPref = pane.shell || useSettingsStore.getState().get('general.defaultShell').trim()
       const localShell =
         pane.protocol === 'local' && shellPref ? { shell: shellPref } : undefined
       window.ternix.terminal
@@ -308,12 +317,33 @@ export function useTerminal(pane: Pane): TerminalController {
   useEffect(() => {
     const term = terminal.current
     if (!term) return
-    term.options.fontFamily = fontFamily
-    term.options.fontSize = Number(fontSize) || 14
-    term.options.lineHeight = Number(lineHeight) || 1.2
-    term.options.letterSpacing = Number(letterSpacing) || 0
-    fit()
-    window.ternix.terminal.resize(pane.id, term.cols, term.rows)
+    let cancelled = false
+    const size = Number(fontSize) || 14
+    // The terminal fonts are webfonts bundled with the app (see the @font-face imports in
+    // index.css), and a browser only fetches one once something actually renders in it — so
+    // the first pane asks for a face that isn't there yet. xterm measures the cell the moment
+    // the family is set, gets the fallback face's advance width, and from then on draws every
+    // column at the wrong offset: the cursor ends up sitting inside the prompt text until a
+    // redraw (pressing Enter) puts it back at column 0. So load the face first, then measure.
+    document.fonts
+      .load(`${size}px ${fontFamily}`)
+      .catch(() => [])
+      .then(() => {
+        if (cancelled) return
+        // On mount these are already the constructor's values, and xterm drops an option
+        // write that doesn't change anything — bounce the family off a generic so it
+        // re-measures against the face that has now landed.
+        term.options.fontFamily = 'monospace'
+        term.options.fontFamily = fontFamily
+        term.options.fontSize = size
+        term.options.lineHeight = Number(lineHeight) || 1.2
+        term.options.letterSpacing = Number(letterSpacing) || 0
+        fit()
+        window.ternix.terminal.resize(pane.id, term.cols, term.rows)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [fontFamily, fontSize, lineHeight, letterSpacing])
 
   return { containerRef, terminal, search, fit, focus, paste, clear }

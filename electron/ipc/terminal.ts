@@ -1,14 +1,17 @@
 import { handle, handleE, on } from './util'
-import type { SpawnOptions, SpawnResult } from '@shared/index'
+import type { ShellInfo, SpawnOptions, SpawnResult } from '@shared/index'
 import { ConnectionManager } from '../services/ConnectionManager'
 import { SshService } from '../services/SshService'
 import { SftpService } from '../services/SftpService'
 import { TunnelService } from '../services/TunnelService'
 import { RecordingService } from '../services/RecordingService'
 import { spawnTerminal } from '../services/SpawnService'
+import { PtyService } from '../services/PtyService'
 
 export function registerTerminalHandlers(): void {
   handleE<SpawnResult>('terminal:spawn', (event, opts: SpawnOptions) => spawnTerminal(opts, event.sender.id))
+
+  handle<ShellInfo[]>('terminal:shells', () => PtyService.shells())
 
   on('terminal:write', (tabId: string, data: string) => {
     ConnectionManager.get(tabId)?.write(data)

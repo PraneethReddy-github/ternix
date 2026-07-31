@@ -12,6 +12,8 @@ export interface Pane {
   state: ConnState
   message?: string
   recording: boolean
+  /** Local panes only: the shell to spawn, overriding general.defaultShell. */
+  shell?: string
 }
 
 /**

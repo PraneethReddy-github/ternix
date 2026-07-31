@@ -6,6 +6,7 @@ import type {
   Session,
   SessionInput,
   SshKey,
+  ShellInfo,
   KeyGenerateOptions,
   Snippet,
   Tunnel,
@@ -52,6 +53,8 @@ export interface TernixApi {
   }
   terminal: {
     spawn(opts: SpawnOptions): Promise<SpawnResult>
+    /** Local shells this machine has. Empty off Windows — see PtyService.detectShells. */
+    shells(): Promise<ShellInfo[]>
     write(tabId: string, data: string): void
     resize(tabId: string, cols: number, rows: number): void
     kill(tabId: string): Promise<void>

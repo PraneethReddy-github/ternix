@@ -54,6 +54,8 @@ interface NewTabOpts {
   group?: 0 | 1
   /** Insert right after this tab instead of at the end of the strip. */
   after?: string
+  /** Local shell to spawn (a path from terminal.shells()). Omitted => general.defaultShell. */
+  shell?: string
 }
 
 interface TabState {
@@ -110,7 +112,8 @@ function makePane(opts?: NewTabOpts): Pane {
     title: opts?.title ?? 'Local Shell',
     host: opts?.host ?? null,
     state: 'connecting',
-    recording: false
+    recording: false,
+    shell: opts?.shell
   }
 }
 
@@ -360,7 +363,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       tabs: s.tabs.map((t) => {
         if (t.id !== tabId || t.panes.length >= maxPanesFor(s.tabs)) return t
         const active = t.panes.find((p) => p.id === t.activePaneId)
-        const pane = makePane({ sessionId: active?.sessionId, protocol: active?.protocol, title: active?.title, host: active?.host })
+        const pane = makePane({ sessionId: active?.sessionId, protocol: active?.protocol, title: active?.title, host: active?.host, shell: active?.shell })
         const layout = insertPane(t.layout, t.activePaneId, pane.id, dir, maxColsFor(s.tabs))
         if (!layout) return t
         return { ...t, panes: [...t.panes, pane], activePaneId: pane.id, layout }

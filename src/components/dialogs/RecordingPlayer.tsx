@@ -4,6 +4,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import type { Recording } from '@shared/index'
 import { Modal } from '@/components/ui/Modal'
+import { useSettingsStore } from '@/store/useSettingsStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { toXtermTheme } from '@/themes'
 import { formatDuration } from '@/utils/formatDuration'
@@ -39,9 +40,18 @@ export function RecordingPlayer({ recording, onClose }: { recording: Recording; 
         eventsRef.current = events
         setDuration(events.length ? events[events.length - 1].time : 0)
 
+        // Play a recording back in the same font the session was watched in.
+        const s = useSettingsStore.getState()
+        const fontFamily = s.get('appearance.fontFamily')
+        const fontSize = s.getNum('appearance.fontSize') || 13
+        // Get that face in before xterm measures the character cell, or playback is laid out
+        // to the fallback font's width — same trap as useTerminal, but this one can just wait,
+        // since there's nothing on screen yet to have measured wrongly.
+        await document.fonts.load(`${fontSize}px ${fontFamily}`).catch(() => [])
+
         term = new Terminal({
-          fontSize: 13,
-          fontFamily: "'JetBrains Mono', monospace",
+          fontSize,
+          fontFamily,
           cols: header.width || 80,
           rows: header.height || 24,
           theme: toXtermTheme(useThemeStore.getState().active()),

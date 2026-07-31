@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import os from 'node:os'
+import { join } from 'node:path'
+import type { ShellInfo } from '@shared/index'
 import { ConnectionManager, type TerminalBackend } from './ConnectionManager'
 
 const nodeRequire = createRequire(import.meta.url)
@@ -20,8 +23,38 @@ function defaultShell(): { shell: string; args: string[] } {
   return { shell: process.env.SHELL || '/bin/bash', args: [] }
 }
 
+/**
+ * Which shells this machine actually has, for the tab bar's picker. Windows only: it's the
+ * platform where cmd and PowerShell both exist and neither is a superset of the other, so a
+ * single default shell setting can't serve both. Everywhere else $SHELL is the answer and the
+ * list stays empty, which is what keeps the picker off those platforms.
+ *
+ * ponytail: fixed candidate list, and one WSL entry that opens the default distro. Both are
+ * upgrades if asked for — a PATH sweep for the first, `wsl -l -q` for per-distro entries.
+ */
+function detectShells(): ShellInfo[] {
+  if (process.platform !== 'win32') return []
+  const sys = process.env.SystemRoot || 'C:\\Windows'
+  const sys32 = join(sys, 'System32')
+  const pf = process.env.ProgramFiles || 'C:\\Program Files'
+  return [
+    { name: 'Command Prompt', path: process.env.COMSPEC || join(sys32, 'cmd.exe') },
+    { name: 'Windows PowerShell', path: join(sys32, 'WindowsPowerShell', 'v1.0', 'powershell.exe') },
+    { name: 'PowerShell 7', path: join(pf, 'PowerShell', '7', 'pwsh.exe') },
+    { name: 'Git Bash', path: join(pf, 'Git', 'bin', 'bash.exe') },
+    { name: 'WSL', path: join(sys32, 'wsl.exe') }
+  ].filter((c) => existsSync(c.path))
+}
+
+// Installed shells don't come and go while the app runs, so probe the disk once.
+const SHELLS = detectShells()
+
 /** Spawns and manages local pseudo-terminals via node-pty. */
 class PtyServiceImpl {
+  shells(): ShellInfo[] {
+    return SHELLS
+  }
+
   spawn(tabId: string, cols: number, rows: number, opts: LocalShellOptions = {}): TerminalBackend {
     const def = defaultShell()
     const shell = opts.shell || def.shell

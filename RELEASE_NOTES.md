@@ -17,7 +17,11 @@ see in Settings → Updates as "What's new". Short bullets only — this comment
 - **New Session Checks:** The New Session dialog now automatically checks for and prevents duplicate session names to avoid confusion.
 - **Update Previews:** The in-app update checker now directly shows the "What's new" release notes for the new version.
 - **UI Polish:** Added a new smooth pop animation for dropdown menus and improved styling across settings controls like selects and toggles.
+- **Local Shell Picker:** You can now choose a specific shell for individual local terminal sessions, rather than being forced to use the global default.
 
 **Security & Bug Fixes**
 - **Update Checks:** Switched to a secure DOMParser to extract release notes safely, preventing potential markup injection vulnerabilities from GitHub release bodies.
 - Fixed an issue with auto-updates on Windows by explicitly configuring a hyphenated artifact name for the NSIS installer.
+- **Unattended Connections:** Fixed an issue where phone-initiated connections could hang indefinitely when encountering interactive SSH prompts (like unknown host keys or keyboard-interactive logins); they now fail gracefully with instructions to complete the prompt on the desktop.
+- **Terminal Rendering:** Fixed a cursor alignment bug where the cursor would overlap the prompt text upon first launch due to webfonts being measured before they finished loading.
+- **File Transfers:** Fixed an issue where SFTP total transfer speeds would display incorrectly high numbers during concurrent transfers by accurately measuring aggregate SSH channel throughput instead.

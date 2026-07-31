@@ -56,7 +56,7 @@ export default function App() {
       const snap = JSON.stringify(
         state.tabs.map((t) => {
           const p = t.panes.find((x) => x.id === t.activePaneId) ?? t.panes[0]
-          return { sessionId: p?.sessionId ?? null, protocol: p?.protocol ?? 'local', title: t.title }
+          return { sessionId: p?.sessionId ?? null, protocol: p?.protocol ?? 'local', title: t.title, shell: p?.shell }
         })
       )
       if (snap === last) return
@@ -91,14 +91,14 @@ export default function App() {
       if (behavior === 'reopen') {
         let opened = 0
         try {
-          const saved = JSON.parse(useSettingsStore.getState().get('general.lastTabs') || '[]') as { sessionId: number | null; protocol: string; title: string }[]
+          const saved = JSON.parse(useSettingsStore.getState().get('general.lastTabs') || '[]') as { sessionId: number | null; protocol: string; title: string; shell?: string }[]
           const sessions = useSessionStore.getState().sessions
           for (const t of saved) {
             if (t.sessionId != null) {
               const s = sessions.find((x) => x.id === t.sessionId)
               if (s) { connectSession(s, useTabStore); opened++ }
             } else if (t.protocol === 'local') {
-              useTabStore.getState().newTab({ protocol: 'local', title: t.title || 'Local Shell' }); opened++
+              useTabStore.getState().newTab({ protocol: 'local', title: t.title || 'Local Shell', shell: t.shell }); opened++
             }
           }
         } catch { /* corrupt snapshot → fall through to blank */ }

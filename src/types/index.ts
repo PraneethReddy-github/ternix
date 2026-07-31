@@ -178,6 +178,12 @@ export interface SpawnOptions {
   localShell?: { shell?: string; args?: string[]; cwd?: string }
 }
 
+/** A local shell this machine has installed, as offered by the tab bar's shell picker. */
+export interface ShellInfo {
+  name: string
+  path: string
+}
+
 export interface SpawnResult {
   tabId: string
   protocol: Protocol
