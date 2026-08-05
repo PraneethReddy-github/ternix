@@ -147,19 +147,42 @@ export function registerSystemHandlers(): void {
         })
         if (!res.ok) continue
         const r: any = await res.json()
-        const notes: ReleaseNotes = {
-          version: v,
-          name: r.name || tag,
-          body: r.body || '',
-          publishedAt: r.published_at ?? null,
-          url: r.html_url ?? ''
+        if (r && r.body && r.body.trim()) {
+          const notes: ReleaseNotes = {
+            version: v,
+            name: r.name || tag,
+            body: r.body,
+            publishedAt: r.published_at ?? null,
+            url: r.html_url ?? ''
+          }
+          notesCache.set(v, notes)
+          return notes
         }
-        notesCache.set(v, notes)
-        return notes
       } catch {
         /* offline or rate-limited — fall through, and don't cache the failure */
       }
     }
+
+    // Fallback to local RELEASE_NOTES.md if GitHub API body is empty, offline, or rate-limited
+    try {
+      const fs = await import('fs')
+      const path = await import('path')
+      const localPath = path.join(app.getAppPath(), 'RELEASE_NOTES.md')
+      if (fs.existsSync(localPath)) {
+        const body = fs.readFileSync(localPath, 'utf8')
+        const notes: ReleaseNotes = {
+          version: v,
+          name: `v${v}`,
+          body,
+          publishedAt: null,
+          url: `https://github.com/PraneethReddy-github/ternix/releases/tag/v${v}`
+        }
+        return notes
+      }
+    } catch {
+      /* ignore */
+    }
+
     return null
   })
 
