@@ -7,6 +7,7 @@ import { ConnectionManager } from './ConnectionManager'
 import { settingsRepo } from '../db/repo'
 import { ownerFromLongname } from './sftpOwner'
 import { summarize, TransferCancelledError } from './transferOutcome'
+import { bytesPerSecond } from './transferRate'
 import { Bus } from './bus'
 
 /**
@@ -313,13 +314,12 @@ class SftpServiceImpl {
     this.transfers.set(transferId, state)
 
     let transferred = 0
-    let lastEmit = Date.now()
-    let lastBytes = 0
+    const startedAt = Date.now()
+    let lastEmit = startedAt
 
     const emit = (status: TransferProgress['status'], error?: string) => {
       const now = Date.now()
-      const elapsed = (now - lastEmit) / 1000 || 1
-      const bps = status === 'active' ? (transferred - lastBytes) / elapsed : 0
+      const bps = status === 'active' ? bytesPerSecond(transferred, now - startedAt) : 0
       const remaining = total - transferred
       const eta = bps > 0 ? remaining / bps : 0
       Bus.emit('sftp:progress', {
@@ -330,15 +330,12 @@ class SftpServiceImpl {
         remotePath,
         transferred,
         total,
-        bytesPerSecond: Math.max(0, Math.round(bps)),
+        bytesPerSecond: bps,
         etaSeconds: Math.round(eta),
         status,
         error
       } satisfies TransferProgress)
-      if (status === 'active') {
-        lastEmit = now
-        lastBytes = transferred
-      }
+      if (status === 'active') lastEmit = now
     }
 
     emit('pending')

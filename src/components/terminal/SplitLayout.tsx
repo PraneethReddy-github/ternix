@@ -4,8 +4,12 @@ import { useTabStore } from '@/store/useTabStore'
 import { TerminalPane } from './TerminalPane'
 import { RemoteDesktopPane } from './RemoteDesktopPane'
 
-/** Gap (px) drawn between panes — the container's border color shows through. */
-const GAP = 1
+/**
+ * Gap (px) drawn between panes — the container's border color shows through. Kept even:
+ * each pane is inset by half of it, and an odd gap put every split pane on a half-pixel
+ * boundary, which blurs the whole glyph grid.
+ */
+const GAP = 2
 /** A pane can never be dragged below this fraction of the tab, so it can't be closed by resizing. */
 const MIN_FR = 0.15
 

@@ -5,6 +5,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import type { Recording } from '@shared/index'
 import { Modal } from '@/components/ui/Modal'
 import { useThemeStore } from '@/store/useThemeStore'
+import { useSettingsStore } from '@/store/useSettingsStore'
+import { remeasureOnFontLoad } from '@/hooks/useTerminal'
 import { toXtermTheme } from '@/themes'
 import { formatDuration } from '@/utils/formatDuration'
 
@@ -39,9 +41,15 @@ export function RecordingPlayer({ recording, onClose }: { recording: Recording; 
         eventsRef.current = events
         setDuration(events.length ? events[events.length - 1].time : 0)
 
+        // Play back in the same font the session was recorded in — a hardcoded family and
+        // size re-wrapped every recording against metrics the shell never drew with.
+        const s = useSettingsStore.getState()
         term = new Terminal({
-          fontSize: 13,
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: s.get('appearance.fontFamily'),
+          fontSize: s.getNum('appearance.fontSize') || 14,
+          lineHeight: Number(s.get('appearance.lineHeight')) || 1.2,
+          letterSpacing: Number(s.get('appearance.letterSpacing')) || 0,
+          rescaleOverlappingGlyphs: true,
           cols: header.width || 80,
           rows: header.height || 24,
           theme: toXtermTheme(useThemeStore.getState().active()),
@@ -52,6 +60,7 @@ export function RecordingPlayer({ recording, onClose }: { recording: Recording; 
         if (containerRef.current) {
           term.open(containerRef.current)
           fit.fit()
+          remeasureOnFontLoad(term, () => termRef.current === term, () => fit.fit())
         }
         termRef.current = term
         play()

@@ -30,7 +30,9 @@ import type {
   ImportSource,
   ExportTarget,
   ImportResult,
-  TerminalTheme
+  TerminalTheme,
+  ShellProfile,
+  ReleaseNotes
 } from './index'
 import type { TearoffPayload } from './ui'
 
@@ -169,6 +171,8 @@ export interface TernixApi {
     /** Absolute path of a dragged-in File, or '' if it isn't a real on-disk file. Synchronous. */
     getPathForFile(file: File): string
     listSerialPorts(): Promise<{ path: string; manufacturer?: string }[]>
+    /** Shells installed on this machine, for the "+" button's right-click menu. */
+    listShells(): Promise<ShellProfile[]>
     openPath(path: string): Promise<void>
     showItemInFolder(path: string): Promise<void>
     selectDirectory(): Promise<string | null>
@@ -194,7 +198,8 @@ export interface TernixApi {
     getTearoffTab(): Promise<TearoffPayload | null>
   }
   updates: {
-    check(): Promise<{ available: boolean; version?: string }>
+    check(): Promise<{ available: boolean; version?: string; error?: string }>
+    notes(version?: string): Promise<ReleaseNotes | null>
     download(): Promise<void>
     install(): void
     onStatus(cb: (s: { event: string; info?: any }) => void): () => void

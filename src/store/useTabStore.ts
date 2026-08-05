@@ -9,7 +9,7 @@ function uuid(): string {
 
 /** Kill a pane's backend connection and drop any SFTP state tied to it. */
 function killPane(paneId: string): void {
-  window.ternix.terminal.kill(paneId).catch(() => {})
+  window.ternix.terminal.kill(paneId).catch(() => { })
   useSftpStore.getState().clearRemotePath(paneId)
 }
 
@@ -54,6 +54,9 @@ interface NewTabOpts {
   group?: 0 | 1
   /** Insert right after this tab instead of at the end of the strip. */
   after?: string
+  /** Local shells only: pin this pane to a specific shell (see `Pane.shell`). */
+  shell?: string
+  shellArgs?: string[]
 }
 
 interface TabState {
@@ -110,7 +113,9 @@ function makePane(opts?: NewTabOpts): Pane {
     title: opts?.title ?? 'Local Shell',
     host: opts?.host ?? null,
     state: 'connecting',
-    recording: false
+    recording: false,
+    shell: opts?.shell,
+    shellArgs: opts?.shellArgs
   }
 }
 
@@ -360,7 +365,14 @@ export const useTabStore = create<TabState>((set, get) => ({
       tabs: s.tabs.map((t) => {
         if (t.id !== tabId || t.panes.length >= maxPanesFor(s.tabs)) return t
         const active = t.panes.find((p) => p.id === t.activePaneId)
-        const pane = makePane({ sessionId: active?.sessionId, protocol: active?.protocol, title: active?.title, host: active?.host })
+        const pane = makePane({
+          sessionId: active?.sessionId,
+          protocol: active?.protocol,
+          title: active?.title,
+          host: active?.host,
+          shell: active?.shell,
+          shellArgs: active?.shellArgs
+        })
         const layout = insertPane(t.layout, t.activePaneId, pane.id, dir, maxColsFor(s.tabs))
         if (!layout) return t
         return { ...t, panes: [...t.panes, pane], activePaneId: pane.id, layout }

@@ -46,7 +46,7 @@ export function registerRemoteHandlers(): void {
     const { wsUrl } = await VncBridgeService.open(tabId, target.host, target.port)
     const { vncPassword } = sessionsRepo.getSecrets(sessionId)
     startLog(tabId, session)
-    return { protocol: 'vnc', wsUrl, password: vncPassword }
+    return { protocol: 'vnc', wsUrl, password: vncPassword, username: session.username ?? null }
   })
 
   handle<RdpOpenResult>('remote:rdp:open', async (tabId: string, sessionId: number, width?: number, height?: number) => {

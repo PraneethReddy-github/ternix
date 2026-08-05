@@ -10,6 +10,7 @@ import { connectSession } from '@/components/sidebar/SessionCard'
 import { paneActions } from '@/hooks/terminalRegistry'
 import { cn } from '@/utils/cn'
 import type { Tab } from '@shared/ui'
+import type { ShellProfile } from '@shared/index'
 
 /**
  * How stale the last in-window dragover may be at dragend and still count as "dropped
@@ -38,6 +39,9 @@ function tearOffTab(tab: Tab) {
   store.detachTab(tab.id)
 }
 
+let shellsPromise: Promise<ShellProfile[]> | null = null
+const loadShells = () => (shellsPromise ??= window.ternix.system.listShells().catch(() => []))
+
 /** One tab strip per split group — VSCode-style: each group owns its tabs and its own "+". */
 /** Move a tab into a split group, surfacing the store's rejection reason as a toast. */
 export function moveToGroup(tabId: string, group: 0 | 1) {
@@ -64,6 +68,11 @@ export function TabBar({ group = 0 }: { group?: 0 | 1 }) {
 
   const stripRef = useRef<HTMLDivElement | null>(null)
   const [overflow, setOverflow] = useState({ left: false, right: false })
+  const [shells, setShells] = useState<ShellProfile[]>([])
+
+  useEffect(() => {
+    loadShells().then(setShells)
+  }, [])
 
   const updateOverflow = useCallback(() => {
     const el = stripRef.current
@@ -125,6 +134,24 @@ export function TabBar({ group = 0 }: { group?: 0 | 1 }) {
     if (shownId) setActive(shownId)
     if (proto === 'ssh') openDialog({ kind: 'newSession' })
     else newTab({ protocol: 'local', title: 'Local Shell', group })
+  }
+
+  // Windows Terminal-style shell picker. Nothing detected (or detection failed) ⇒ the
+  // right-click just opens a normal new tab rather than showing an empty menu.
+  const handleNewTabMenu = (e: React.MouseEvent) => {
+    if (shownId) setActive(shownId)
+    if (!shells.length) {
+      e.preventDefault()
+      handleNewTab()
+      return
+    }
+    open(
+      e,
+      shells.map((p) => ({
+        label: p.name,
+        onClick: () => newTab({ protocol: 'local', title: p.name, group, shell: p.shell, shellArgs: p.args })
+      }))
+    )
   }
 
   return (
@@ -223,8 +250,9 @@ export function TabBar({ group = 0 }: { group?: 0 | 1 }) {
       )}
       <button
         className="shrink-0 px-3 text-muted hover:text-text hover:bg-surface-2 border-l border-border"
-        title="New tab"
+        title="New tab (right-click to choose a shell)"
         onClick={handleNewTab}
+        onContextMenu={handleNewTabMenu}
       >
         <Plus size={16} />
       </button>

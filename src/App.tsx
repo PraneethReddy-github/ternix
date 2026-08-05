@@ -17,18 +17,6 @@ export default function App() {
   const loadTheme = useThemeStore((s) => s.load)
   const loadSettings = useSettingsStore((s) => s.load)
   const subscribeTransfers = useTransferStore((s) => s.subscribe)
-  const customCss = useSettingsStore((s) => s.get('appearance.customCss'))
-
-  // Inject user Custom CSS into the app chrome (CSP allows inline styles).
-  useEffect(() => {
-    let el = document.getElementById('tx-custom-css') as HTMLStyleElement | null
-    if (!el) {
-      el = document.createElement('style')
-      el.id = 'tx-custom-css'
-      document.head.appendChild(el)
-    }
-    el.textContent = customCss
-  }, [customCss])
 
   // Keep the vault's idle auto-lock a true idle timer: reset it on user activity
   // (throttled). No-op in keychain mode / when auto-lock is off.

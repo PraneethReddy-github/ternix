@@ -46,11 +46,12 @@
   "deb": {
     "depends": [
       "libnotify4",
-      "libappindicator3-1",
       "libxtst6",
       "libnss3",
       "libxss1",
-      "libsecret-1-0",
+      "libsecret-1-0"
+    ],
+    "recommends": [
       "guacd"
     ]
   },

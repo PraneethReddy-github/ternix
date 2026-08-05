@@ -1,73 +1,179 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Section, Row, ToggleSetting, SelectSetting } from './SettingControls'
-import { useUiStore } from '@/store/useUiStore'
 import { formatSpeed } from '@/utils/formatBytes'
+import type { ReleaseNotes } from '@shared/index'
 
 type UpdateState = 'idle' | 'checking' | 'available' | 'downloading' | 'ready'
-function parseNotes(raw: unknown): string[] {
-  const html = Array.isArray(raw)
-    ? raw.map((n: any) => n?.note ?? '').join('\n')
-    : typeof raw === 'string' ? raw : ''
-  if (!html.trim()) return []
-  const body = new DOMParser().parseFromString(html, 'text/html').body
-  const items = [...body.querySelectorAll('li')].map((li) => li.textContent?.trim() ?? '')
-  const lines = items.length ? items : (body.textContent ?? '').split('\n')
-  return lines.map((l) => l.replace(/^[-*•]\s*/, '').trim()).filter(Boolean)
+
+/**
+ * `**bold**`, `` `code` `` and `[text](url)` inside one line. Anything else stays literal —
+ * a release body is prose, not a document format, and unmatched syntax reading as plain
+ * text is the right failure mode.
+ */
+function inline(text: string, key: string): ReactNode[] {
+  const out: ReactNode[] = []
+  const re = /\*\*(.+?)\*\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)/g
+  let last = 0
+  let n = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index))
+    if (m[1]) {
+      out.push(<strong key={`${key}b${n}`} className="text-text font-semibold">{m[1]}</strong>)
+    } else if (m[2]) {
+      out.push(<code key={`${key}c${n}`} className="px-1 py-0.5 rounded bg-surface-2 text-text">{m[2]}</code>)
+    } else {
+      const [label, href] = [m[3], m[4]]
+      out.push(
+        <a
+          key={`${key}a${n}`}
+          className="text-accent hover:underline cursor-pointer"
+          onClick={() => window.ternix.system.openPath(href)}
+        >
+          {label}
+        </a>
+      )
+    }
+    last = re.lastIndex
+    n++
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out
+}
+
+/**
+ * The subset of markdown a GitHub release body actually uses: headings, bullets, numbered
+ * items, fenced code and paragraphs. Renders to React elements, so a release body can never
+ * inject markup — which a full markdown dependency plus sanitiser would have to earn back.
+ */
+function Markdown({ text }: { text: string }) {
+  const blocks: ReactNode[] = []
+  let fenced = false
+  // RELEASE_NOTES.md opens with an HTML comment holding instructions for whoever writes it.
+  // GitHub hides those when it renders the release; raw markdown would print them.
+  text = text.replace(/<!--[\s\S]*?-->/g, '')
+  text.split('\n').forEach((raw, i) => {
+    const line = raw.trimEnd()
+    if (/^\s*```/.test(line)) {
+      fenced = !fenced
+      return
+    }
+    if (fenced) {
+      blocks.push(
+        <div key={i} className="text-[10.5px] text-text font-mono bg-surface-2 px-2 py-0.5 whitespace-pre-wrap break-all">
+          {raw}
+        </div>
+      )
+      return
+    }
+    if (!line.trim()) return
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line)
+    if (heading) {
+      blocks.push(
+        <div key={i} className="text-[11px] font-semibold text-text mt-2.5 first:mt-0">
+          {inline(heading[2], `h${i}`)}
+        </div>
+      )
+      return
+    }
+    const bullet = /^\s*[-*+]\s+(.*)$/.exec(line) ?? /^\s*\d+[.)]\s+(.*)$/.exec(line)
+    if (bullet) {
+      blocks.push(
+        <div key={i} className="flex gap-2 text-[11px] text-muted">
+          <span className="text-accent shrink-0">•</span>
+          <span className="min-w-0">{inline(bullet[1], `l${i}`)}</span>
+        </div>
+      )
+      return
+    }
+    blocks.push(
+      <div key={i} className="text-[11px] text-muted">
+        {inline(line, `p${i}`)}
+      </div>
+    )
+  })
+  return <div className="space-y-1">{blocks}</div>
 }
 
 export function UpdateSettings() {
   const [version, setVersion] = useState('')
   const [state, setState] = useState<UpdateState>('idle')
-  const [newVersion, setNewVersion] = useState<string>('')
-  const [notes, setNotes] = useState<string[]>([])
+  const [newVersion, setNewVersion] = useState('')
+  const [notes, setNotes] = useState<ReleaseNotes | null>(null)
+  const [notesError, setNotesError] = useState('')
+  const [status, setStatus] = useState('')
   const [progress, setProgress] = useState({ percent: 0, speed: 0 })
-  const notify = useUiStore((s) => s.notify)
+
+  /**
+   * Show the notes for whichever version is being talked about: the installed one while
+   * up to date, the pending one once a check finds something newer.
+   */
+  const showNotes = useCallback(async (v: string) => {
+    setNotesError('')
+    const res = await window.ternix.updates.notes(v).catch(() => null)
+    if (res) setNotes(res)
+    else setNotesError("Couldn't reach GitHub for the release notes.")
+  }, [])
 
   useEffect(() => {
-    window.ternix.system.version().then(setVersion)
+    window.ternix.system.version().then((v) => {
+      setVersion(v)
+      showNotes(v)
+    })
 
     const unsub = window.ternix.updates.onStatus((s) => {
       if (s.event === 'available') {
         setNewVersion(s.info.version)
-        setNotes(parseNotes(s.info.releaseNotes))
+        setStatus(`Version ${s.info.version} is available.`)
         setState('available')
+        showNotes(s.info.version)
       } else if (s.event === 'none') {
-        setNotes([])
         setState('idle')
       } else if (s.event === 'error') {
         setState('idle')
-        notify(`Update error: ${s.info.message}`, 'error')
+        setStatus(String(s.info?.message ?? 'Update check failed.'))
       } else if (s.event === 'progress') {
         setState('downloading')
         setProgress({ percent: s.info.percent, speed: s.info.bytesPerSecond })
       } else if (s.event === 'downloaded') {
         setState('ready')
+        setStatus('Update downloaded — restart to install it.')
       }
     })
     return unsub
-  }, [notify])
+  }, [showNotes])
 
   const checkNow = async () => {
     setState('checking')
+    setStatus('')
     try {
       const res = await window.ternix.updates.check()
-      if (!res.available) {
-        notify('You are up to date', 'success')
+      if (res.available && res.version) {
+        // The pushed 'available' event usually lands first; doing it twice is harmless.
+        setNewVersion(res.version)
+        setStatus(`Version ${res.version} is available.`)
+        setState('available')
+        showNotes(res.version)
+      } else {
+        // Up to date still shows what changed — in the release you're actually running.
+        setStatus(res.error || "You're on the latest version.")
         setState('idle')
+        if (!res.error) showNotes(version)
       }
     } catch (e: any) {
-      notify(e.message, 'error')
+      setStatus(e.message)
       setState('idle')
     }
   }
 
   const download = async () => {
     setState('downloading')
-    await window.ternix.updates.download()
-  }
-
-  const install = () => {
-    window.ternix.updates.install()
+    try {
+      await window.ternix.updates.download()
+    } catch (e: any) {
+      setState('available')
+      setStatus(e.message)
+    }
   }
 
   return (
@@ -95,24 +201,38 @@ export function UpdateSettings() {
               </div>
             )}
             {state === 'ready' && (
-              <button className="tx-btn-primary bg-success text-bg border-transparent hover:brightness-110" onClick={install}>
+              <button
+                className="tx-btn-primary bg-success text-bg border-transparent hover:brightness-110"
+                onClick={() => window.ternix.updates.install()}
+              >
                 Restart & Install
               </button>
             )}
           </div>
         </Row>
-        {notes.length > 0 && state !== 'idle' && (
+
+        {/* Inline, not a toast: the result of a check is something you read, not dismiss. */}
+        {status && <div className="text-[11px] text-muted -mt-1">{status}</div>}
+
+        {notes ? (
           <div className="rounded-md border border-border bg-surface px-3 py-2.5">
-            <div className="text-[11px] font-semibold text-text uppercase tracking-wide mb-1.5">{`What's new in v${newVersion}`}</div>
-            <ul className="space-y-1">
-              {notes.map((n, i) => (
-                <li key={i} className="text-[11px] text-muted flex gap-2">
-                  <span className="text-accent">•</span>
-                  <span className="min-w-0">{n}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+              <div className="text-[11px] font-semibold text-text uppercase tracking-wide">
+                {`What's new in v${notes.version}`}
+                {notes.version !== version && <span className="ml-1.5 normal-case text-accent">(not installed yet)</span>}
+              </div>
+              {notes.publishedAt && (
+                <div className="text-[10px] text-muted shrink-0">{new Date(notes.publishedAt).toLocaleDateString()}</div>
+              )}
+            </div>
+            {notes.body.trim() ? (
+              <Markdown text={notes.body} />
+            ) : (
+              <div className="text-[11px] text-muted">This release was published without notes.</div>
+            )}
           </div>
+        ) : (
+          notesError && <div className="text-[11px] text-muted">{notesError}</div>
         )}
       </Section>
     </div>

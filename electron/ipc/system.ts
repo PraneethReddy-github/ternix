@@ -4,6 +4,8 @@ import { createRequire } from 'node:module'
 import { handle, handleE, on, onE } from './util'
 import { isUrl } from './openTarget'
 import { SerialService } from '../services/SerialService'
+import { ShellService } from '../services/ShellService'
+import type { ReleaseNotes } from '@shared/index'
 import { ConnectionManager } from '../services/ConnectionManager'
 import { Bus } from '../services/bus'
 import { settingsRepo } from '../db/repo'
@@ -29,6 +31,7 @@ export function registerSystemHandlers(): void {
 
   // System
   handle('system:listSerialPorts', () => SerialService.listPorts())
+  handle('system:listShells', () => ShellService.list())
   handle<void>('system:openPath', async (path: string) => {
     // Doubles as the terminal's link handler. shell.openPath only opens filesystem
     // paths — a URL (e.g. a link in terminal output, or Tailscale SSH's "visit this
@@ -112,18 +115,52 @@ export function registerSystemHandlers(): void {
     up.allowPrerelease = (settingsRepo.get('updates.channel') ?? 'stable') === 'beta'
   }
 
-  handle<{ available: boolean; version?: string }>('updates:check', async () => {
+  // A failed check used to be indistinguishable from "up to date" — the renderer told
+  // people they were current when the request had actually died. Report the reason.
+  handle<{ available: boolean; version?: string; error?: string }>('updates:check', async () => {
+    if (!app.isPackaged) return { available: false, error: 'Update checks are disabled in development builds' }
+    const up = getUpdater()
+    if (!up) return { available: false, error: 'This build was packaged without the updater' }
     try {
-      const up = getUpdater()
-      if (!up) return { available: false }
       applyChannel(up)
       const result = await up.checkForUpdates()
       const latestVersion = result?.updateInfo?.version
       const isAvailable = latestVersion && latestVersion !== app.getVersion()
       return { available: !!isAvailable, version: latestVersion }
-    } catch {
-      return { available: false }
+    } catch (e: any) {
+      return { available: false, error: String(e?.message ?? e) }
     }
+  })
+
+  const RELEASES_API = 'https://api.github.com/repos/PraneethReddy-github/ternix/releases/tags'
+  const notesCache = new Map<string, ReleaseNotes>()
+
+  handle<ReleaseNotes | null>('updates:notes', async (version?: string) => {
+    const v = (version || app.getVersion()).replace(/^v/, '')
+    const hit = notesCache.get(v)
+    if (hit) return hit
+    // Releases are tagged v1.2.0 here, but accept a bare tag too so a retag doesn't break this.
+    for (const tag of [`v${v}`, v]) {
+      try {
+        const res = await fetch(`${RELEASES_API}/${tag}`, {
+          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Ternix' }
+        })
+        if (!res.ok) continue
+        const r: any = await res.json()
+        const notes: ReleaseNotes = {
+          version: v,
+          name: r.name || tag,
+          body: r.body || '',
+          publishedAt: r.published_at ?? null,
+          url: r.html_url ?? ''
+        }
+        notesCache.set(v, notes)
+        return notes
+      } catch {
+        /* offline or rate-limited — fall through, and don't cache the failure */
+      }
+    }
+    return null
   })
 
   handle<void>('updates:download', async () => {

@@ -36,7 +36,11 @@ export function GlobalPrompts() {
     <>
       {hostKey && (
         <Modal
-          title={hostKey.changed ? 'Host key CHANGED' : 'Unknown host key'}
+          title={
+            hostKey.keyType === 'vnc-tls-cert'
+              ? hostKey.changed ? 'TLS certificate CHANGED' : 'Unknown TLS certificate'
+              : hostKey.changed ? 'Host key CHANGED' : 'Unknown host key'
+          }
           width={520}
           onClose={() => {
             window.ternix.terminal.respondHostKey(hostKey.tabId, 'reject')
@@ -78,7 +82,11 @@ export function GlobalPrompts() {
             {hostKey.changed ? <ShieldAlert size={32} className="text-danger shrink-0" /> : <ShieldQuestion size={32} className="text-warning shrink-0" />}
             <div className="text-[13px] text-text space-y-2">
               <p>
-                The authenticity of host <b>{hostKey.host}:{hostKey.port}</b> {hostKey.changed ? 'has CHANGED.' : "can't be established."}
+                {hostKey.keyType === 'vnc-tls-cert' ? (
+                  <>The TLS certificate presented by <b>{hostKey.host}:{hostKey.port}</b> {hostKey.changed ? 'has CHANGED.' : 'is not trusted yet.'}</>
+                ) : (
+                  <>The authenticity of host <b>{hostKey.host}:{hostKey.port}</b> {hostKey.changed ? 'has CHANGED.' : "can't be established."}</>
+                )}
               </p>
               {hostKey.changed && (
                 <p className="text-danger">

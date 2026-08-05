@@ -61,10 +61,6 @@ export function AppearanceSettings() {
         <Row label="Compact mode" hint="Smaller tab bar, hide per-pane toolbar"><ToggleSetting k="appearance.compactMode" /></Row>
         <Row label="Show clock in status bar"><ToggleSetting k="appearance.showClock" /></Row>
       </Section>
-
-      <Section title="Advanced">
-        <Row label="Custom CSS" hint="Injected into the app chrome"><TextSetting k="appearance.customCss" width={280} /></Row>
-      </Section>
     </div>
   )
 }

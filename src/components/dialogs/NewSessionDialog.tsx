@@ -149,7 +149,7 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
             </div>
           )}
 
-          {(p === 'ssh' || p === 'rdp') && <Field label="Username"><input className="tx-input" value={form.username ?? ''} onChange={(e) => set('username', e.target.value)} /></Field>}
+          {(p === 'ssh' || p === 'rdp' || p === 'vnc') && <Field label="Username"><input className="tx-input" value={form.username ?? ''} onChange={(e) => set('username', e.target.value)} /></Field>}
           {p === 'rdp' && <Field label="Domain"><input className="tx-input" value={form.rdp_domain ?? ''} onChange={(e) => set('rdp_domain', e.target.value)} /></Field>}
 
           {p === 'ssh' && (
@@ -303,7 +303,6 @@ export function NewSessionDialog({ session, groupId, duplicate, onClose }: { ses
               </div>
             </>
           )}
-          {p === 'vnc' && <p className="text-[11px] text-muted">VNC opens in a Ternix pane using the built-in viewer — no extra software needed. Use “Open in native client” from the pane to launch your system VNC viewer instead.</p>}
           {p === 'rdp' && <p className="text-[11px] text-muted">RDP opens in a Ternix pane via a local <code>guacd</code> daemon (supports modern Windows / NLA). If guacd isn’t running, the pane offers “Open in native client” (xfreerdp / mstsc / Microsoft Remote Desktop). Configure guacd host/port in Settings → Advanced.</p>}
         </div>
       )}

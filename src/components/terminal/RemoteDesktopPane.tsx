@@ -1,15 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { RefreshCw, ExternalLink, Loader2, AlertTriangle, MonitorOff, Monitor } from 'lucide-react'
+import { RefreshCw, ExternalLink, Loader2, AlertTriangle, MonitorOff, Monitor, KeyRound } from 'lucide-react'
 import type { Pane, Tab } from '@shared/ui'
 import { useTabStore } from '@/store/useTabStore'
 import { useUiStore } from '@/store/useUiStore'
 import { useSettingsStore } from '@/store/useSettingsStore'
 import { ensureVaultUnlocked } from '@/utils/vaultGuard'
+import { parseRfbFailure, explainVncFailure } from '@/utils/vncFailure'
 import { ProtocolIcon } from '@/components/sidebar/ProtocolIcon'
 import { cn } from '@/utils/cn'
 
+let lastRfbFailure = ''
+const baseConsoleError = console.error
+console.error = (...args: unknown[]) => {
+  const reason = parseRfbFailure(String(args[0]))
+  if (reason) lastRfbFailure = reason
+  baseConsoleError(...args)
+}
+
 // 'native' = the session was handed off to the OS Remote Desktop client (separate window).
-type Status = 'connecting' | 'connected' | 'disconnected' | 'error' | 'native'
+// 'credentials' = the VNC server asked for something we don't have; waiting on the user.
+type Status = 'connecting' | 'connected' | 'disconnected' | 'error' | 'native' | 'credentials'
+
+const CRED_LABELS: Record<string, string> = {
+  username: 'Username',
+  password: 'Password',
+  target: 'Target'
+}
 
 // Guacamole.Client.State enum values we care about.
 const GUAC_CONNECTED = 3
@@ -24,9 +40,13 @@ const isWindows = () => navigator.userAgent.toLowerCase().includes('windows')
  */
 export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane; active: boolean }) {
   const screenRef = useRef<HTMLDivElement>(null)
+  const rfbRef = useRef<any>(null)
   const [status, setStatus] = useState<Status>('connecting')
   const [message, setMessage] = useState('')
   const [attempt, setAttempt] = useState(0)
+  /** Which credentials the server asked for, and what's typed so far. */
+  const [credTypes, setCredTypes] = useState<string[]>([])
+  const [credValues, setCredValues] = useState<Record<string, string>>({})
   const setActivePane = useTabStore((s) => s.setActivePane)
   const tabFocused = useTabStore((s) => s.activeTabId === tab.id)
   const setPaneState = useTabStore((s) => s.setPaneState)
@@ -37,8 +57,9 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
     (s: Status, msg = '') => {
       setStatus(s)
       setMessage(msg)
-      // 'native' isn't a ConnState — a handed-off session is live, so store it as connected.
-      setPaneState(pane.id, s === 'native' ? 'connected' : s, msg)
+      // Neither 'native' nor 'credentials' is a ConnState: a handed-off session is live, and
+      // one waiting on a password is still mid-connect.
+      setPaneState(pane.id, s === 'native' ? 'connected' : s === 'credentials' ? 'connecting' : s, msg)
     },
     [pane.id, setPaneState]
   )
@@ -49,10 +70,11 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
       return
     }
     let disposed = false
-    let cleanup = () => {}
+    let cleanup = () => { }
 
     const connect = async () => {
       update('connecting')
+      setCredTypes([]) // a retry starts from the saved credentials again
       // RDP/VNC use the saved password, which needs the vault key. Prompt for the master
       // password first if the vault is locked (master-password mode).
       if (!(await ensureVaultUnlocked())) {
@@ -68,10 +90,16 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
 
       try {
         if (pane.protocol === 'vnc') {
-          const { wsUrl, password } = await window.ternix.remote.openVnc(pane.id, pane.sessionId!)
+          const { wsUrl, password, username } = await window.ternix.remote.openVnc(pane.id, pane.sessionId!)
           if (disposed) return
           const { default: RFB } = await import('@novnc/novnc')
-          const rfb = new RFB(el, wsUrl, { credentials: { password: password || undefined } })
+          lastRfbFailure = ''
+          // Send whatever the session has. noVNC only *uses* the fields its negotiated auth
+          // scheme needs, and asks for anything still missing via 'credentialsrequired'.
+          const rfb = new RFB(el, wsUrl, {
+            credentials: { username: username || undefined, password: password || undefined }
+          })
+          rfbRef.current = rfb
           rfb.scaleViewport = true
           rfb.clipViewport = false
           rfb.background = '#000000'
@@ -81,15 +109,23 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
             specificError = true
             !disposed && update('error', e?.detail?.reason || 'Authentication failed')
           })
-          rfb.addEventListener('credentialsrequired', () => {
-            specificError = true
-            !disposed && update('error', 'A VNC password is required for this server.')
+          // The server told us which fields its auth scheme needs — ask for them instead of
+          // dead-ending. This is the only path by which a username can ever be supplied for
+          // ARD / VeNCrypt / MS-Logon servers, and the escape hatch when nothing was saved.
+          rfb.addEventListener('credentialsrequired', (e: any) => {
+            if (disposed) return
+            const types: string[] = (e?.detail?.types ?? ['password']).filter((t: string) => t in CRED_LABELS)
+            setCredTypes(types.length ? types : ['password'])
+            setCredValues({ username: username ?? '', password: password ?? '', target: '' })
+            update('credentials')
           })
           rfb.addEventListener('disconnect', (e: any) => {
             if (disposed || specificError) return
-            e?.detail?.clean ? update('disconnected', 'Disconnected') : update('error', 'Connection lost')
+            if (e?.detail?.clean) return update('disconnected', 'Disconnected')
+            update('error', lastRfbFailure ? explainVncFailure(lastRfbFailure) : 'Connection lost')
           })
           cleanup = () => {
+            rfbRef.current = null
             try { rfb.disconnect() } catch { /* ignore */ }
           }
         } else {
@@ -178,7 +214,7 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
     return () => {
       disposed = true
       cleanup()
-      window.ternix.remote.close(pane.id).catch(() => {})
+      window.ternix.remote.close(pane.id).catch(() => { })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pane.id, pane.sessionId, pane.protocol, attempt])
@@ -202,6 +238,17 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
   }
 
   const reconnect = () => setAttempt((a) => a + 1)
+  const submitCredentials = (e: React.FormEvent) => {
+    e.preventDefault()
+    const rfb = rfbRef.current
+    if (!rfb) return update('error', 'Connection was closed. Reconnect to try again.')
+    update('connecting', 'Authenticating…')
+    try {
+      rfb.sendCredentials(Object.fromEntries(credTypes.map((t) => [t, credValues[t] ?? ''])))
+    } catch (err: any) {
+      update('error', err?.message || 'Failed to send credentials')
+    }
+  }
 
   return (
     <div
@@ -234,6 +281,23 @@ export function RemoteDesktopPane({ tab, pane, active }: { tab: Tab; pane: Pane;
                 <Loader2 size={28} className="text-accent animate-spin" />
                 <div className="text-[13px] text-muted">{message || `Connecting to ${pane.protocol.toUpperCase()} · ${pane.host}…`}</div>
               </>
+            ) : status === 'credentials' ? (
+              <form className="w-full max-w-[280px] flex flex-col gap-2" onSubmit={submitCredentials}>
+                <KeyRound size={24} className="text-accent self-center" />
+                <div className="text-[13px] text-text">{pane.host} needs credentials</div>
+                {credTypes.map((t, i) => (
+                  <input
+                    key={t}
+                    className="tx-input"
+                    type={t === 'password' ? 'password' : 'text'}
+                    placeholder={CRED_LABELS[t]}
+                    autoFocus={i === 0}
+                    value={credValues[t] ?? ''}
+                    onChange={(e) => setCredValues((v) => ({ ...v, [t]: e.target.value }))}
+                  />
+                ))}
+                <button className="tx-btn-primary justify-center" type="submit">Connect</button>
+              </form>
             ) : status === 'native' ? (
               <>
                 <Monitor size={28} className="text-accent" />

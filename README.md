@@ -8,7 +8,7 @@
 
   <p>
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg" />
-    <img alt="Version" src="https://img.shields.io/badge/version-1.2.0-green.svg" />
+    <img alt="Version" src="https://img.shields.io/badge/version-1.2.1-green.svg" />
     <img alt="Platform" src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg" />
     <img alt="Electron" src="https://img.shields.io/badge/Electron-33-47848F?logo=electron" />
     <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react" />
@@ -223,7 +223,7 @@ Exporting a backup *with private keys* requires the master password, when one is
 - **Theme builder** — edit background, foreground, cursor, selection, UI accent/surface/border, and all **16 ANSI colours**, with a live preview. Import/export themes as JSON.
 - Font family, size, ligatures, line height, letter spacing
 - Cursor style (block/underline/bar) with optional blink
-- Custom CSS injection, optional status-bar clock, compact mode
+- Optional status-bar clock, compact mode
 
 ### ⚙️ Settings
 
@@ -257,7 +257,6 @@ Exporting a backup *with private keys* requires the master password, when one is
 | Appearance | `appearance.cursorBlink` | `true` |
 | Appearance | `appearance.compactMode` | `false` |
 | Appearance | `appearance.showClock` | `false` |
-| Appearance | `appearance.customCss` | *(empty)* |
 | SSH | `ssh.defaultPort` | `22` |
 | SSH | `ssh.defaultUsername` | *(empty)* |
 | SSH | `ssh.agentSock` | *(empty)* |

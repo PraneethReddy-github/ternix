@@ -28,6 +28,20 @@ function playBeep() {
     /* audio unavailable */
   }
 }
+export function remeasureOnFontLoad(term: Terminal, alive: () => boolean, after: () => void): void {
+  const family = term.options.fontFamily || 'monospace'
+  document.fonts
+    .load(`${term.options.fontSize || 14}px ${family}`)
+    .catch(() => {
+      /* unknown family — the fallback metrics are then already correct */
+    })
+    .then(() => {
+      if (!alive()) return
+      term.options.fontFamily = family === 'monospace' ? 'serif' : 'monospace'
+      term.options.fontFamily = family
+      after()
+    })
+}
 
 export interface TerminalController {
   containerRef: React.RefObject<HTMLDivElement>
@@ -77,6 +91,7 @@ export function useTerminal(pane: Pane): TerminalController {
       scrollback: s.getNum('terminal.scrollback') || 5000,
       allowProposedApi: true,
       macOptionIsMeta: true,
+      rescaleOverlappingGlyphs: true,
       theme: toXtermTheme(theme),
       wordSeparator: s.get('terminal.wordSeparators')
     })
@@ -130,6 +145,10 @@ export function useTerminal(pane: Pane): TerminalController {
     }
 
     fit()
+    remeasureOnFontLoad(term, () => !isDisposed, () => {
+      fit()
+      window.ternix.terminal.resize(pane.id, term.cols, term.rows)
+    })
 
     // Copy-on-select.
     term.onSelectionChange(() => {
@@ -208,11 +227,22 @@ export function useTerminal(pane: Pane): TerminalController {
     }
 
     const doSpawn = () => {
-      // For local shells, honour the user's configured default shell (e.g. powershell.exe
-      // on Windows, /bin/zsh on Unix). Read fresh so a settings change applies on reconnect.
-      const shellPref = useSettingsStore.getState().get('general.defaultShell').trim()
+      term.write(
+        '\x1b[?1049l' +
+        '\x1b[?1000l\x1b[?1002l\x1b[?1003l' +
+        '\x1b[?2004l' +
+        '\x1b[!p'
+      )
+
+      const fallback = useSettingsStore.getState().get('general.defaultShell').trim()
       const localShell =
-        pane.protocol === 'local' && shellPref ? { shell: shellPref } : undefined
+        pane.protocol !== 'local'
+          ? undefined
+          : pane.shell
+            ? { shell: pane.shell, args: pane.shellArgs }
+            : fallback
+              ? { shell: fallback }
+              : undefined
       window.ternix.terminal
         .spawn({ tabId: pane.id, sessionId: pane.sessionId, cols: term.cols, rows: term.rows, localShell })
         .then((res) => {
@@ -312,8 +342,12 @@ export function useTerminal(pane: Pane): TerminalController {
     term.options.fontSize = Number(fontSize) || 14
     term.options.lineHeight = Number(lineHeight) || 1.2
     term.options.letterSpacing = Number(letterSpacing) || 0
-    fit()
-    window.ternix.terminal.resize(pane.id, term.cols, term.rows)
+    const resize = () => {
+      fit()
+      window.ternix.terminal.resize(pane.id, term.cols, term.rows)
+    }
+    resize()
+    remeasureOnFontLoad(term, () => terminal.current === term, resize)
   }, [fontFamily, fontSize, lineHeight, letterSpacing])
 
   return { containerRef, terminal, search, fit, focus, paste, clear }

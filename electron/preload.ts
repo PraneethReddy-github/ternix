@@ -158,6 +158,7 @@ const api: TernixApi = {
       }
     },
     listSerialPorts: () => invoke('system:listSerialPorts'),
+    listShells: () => invoke('system:listShells'),
     openPath: (path) => invoke('system:openPath', path),
     showItemInFolder: (path) => invoke('system:showItemInFolder', path),
     selectDirectory: () => invoke('system:selectDirectory'),
@@ -182,6 +183,7 @@ const api: TernixApi = {
   },
   updates: {
     check: () => invoke('updates:check'),
+    notes: (version) => invoke('updates:notes', version),
     download: () => invoke('updates:download'),
     install: () => ipcRenderer.send('updates:install'),
     onStatus: (cb) => subscribe('updates:status', cb)

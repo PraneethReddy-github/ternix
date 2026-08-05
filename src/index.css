@@ -54,6 +54,11 @@ body {
   user-select: none;
 }
 
+.xterm {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+}
+
 /* Frameless titlebar drag region */
 .drag-region {
   -webkit-app-region: drag;

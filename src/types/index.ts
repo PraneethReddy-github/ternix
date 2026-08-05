@@ -170,6 +170,24 @@ export interface KnownHost {
 
 // ---- Terminal / connection runtime ----
 
+/** An installed shell offered by the "+" button's right-click menu. */
+export interface ShellProfile {
+  /** Label shown in the menu — the distro name for WSL, the binary name on Unix. */
+  name: string
+  shell: string
+  args?: string[]
+}
+
+/** A published GitHub release, shown as "What's new" on the Updates page. */
+export interface ReleaseNotes {
+  version: string
+  name: string
+  /** Raw markdown from the release body. */
+  body: string
+  publishedAt: string | null
+  url: string
+}
+
 export interface SpawnOptions {
   tabId: string
   sessionId?: number | null // null/undefined => local shell
@@ -190,6 +208,8 @@ export interface VncOpenResult {
   protocol: 'vnc'
   wsUrl: string
   password: string | null
+  /** Only some auth schemes use one (ARD, VeNCrypt, MS-Logon) — null for classic VNC auth. */
+  username: string | null
 }
 
 export interface RdpOpenResult {

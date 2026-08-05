@@ -5,6 +5,7 @@ import { SshService } from '../services/SshService'
 import { SftpService } from '../services/SftpService'
 import { TunnelService } from '../services/TunnelService'
 import { RecordingService } from '../services/RecordingService'
+import { VncBridgeService } from '../services/VncBridgeService'
 import { spawnTerminal } from '../services/SpawnService'
 
 export function registerTerminalHandlers(): void {
@@ -26,7 +27,9 @@ export function registerTerminalHandlers(): void {
   })
 
   on('terminal:hostkey:respond', (tabId: string, decision: 'accept' | 'always' | 'reject') => {
-    SshService.respondHostKey(tabId, decision)
+    // A VNC pane's TLS certificate prompt rides the same channel and modal; only one of the
+    // two can be waiting on a given pane.
+    if (!VncBridgeService.respondHostKey(tabId, decision)) SshService.respondHostKey(tabId, decision)
   })
 
   on('terminal:kbi:respond', (tabId: string, responses: string[]) => {
