@@ -38,7 +38,7 @@ export interface TearoffPayload {
   scrollback: Record<string, string>
 }
 
-export type ActivityView = 'sessions' | 'sftp' | 'snippets' | 'tunnels' | 'recordings' | 'settings' | 'search' | 'monitor'
+export type ActivityView = 'sessions' | 'sftp' | 'snippets' | 'tunnels' | 'recordings' | 'settings' | 'search' | 'monitor' | 'phone'
 
 export interface SettingsMap {
   [key: string]: string

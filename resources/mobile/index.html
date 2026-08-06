@@ -308,12 +308,14 @@
       min-height: 0;
       overflow: hidden;
       position: relative;
+      touch-action: none;
     }
 
     /* Only a mirrored desktop pane can be wider than the phone, so only it may pan. */
     #termWrap.pan {
       overflow: auto;
       -webkit-overflow-scrolling: touch;
+      touch-action: pan-x pan-y;
     }
 
     #term {
@@ -360,7 +362,8 @@
       align-items: stretch;
     }
 
-    /* Pinned so the command sheet is always one tap away, however far the row is scrolled. */
+    /* Pinned to the start of the key row, so it is one tap away however far the keys are
+       scrolled. */
     #cmdBtn {
       flex-shrink: 0;
       border: 0;
@@ -374,7 +377,35 @@
       touch-action: manipulation;
     }
 
-    #cmdBtn:active {
+    /* Pinned to the end of the key row when scrolled up, filling the bar height.
+       Hidden completely at the bottom of scrollback so no extra block is left behind. */
+    #toBottom {
+      display: none;
+      flex-shrink: 0;
+      align-self: stretch;
+      margin: 0;
+      padding: 0 18px;
+      border: 0;
+      border-left: 1px solid var(--border);
+      border-radius: 0;
+      background: var(--surface2);
+      color: var(--accent);
+      font-size: 18px;
+      line-height: 1;
+      min-width: 52px;
+      touch-action: manipulation;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #toBottom.on {
+      display: flex;
+    }
+
+    #cmdBtn:active,
+    #toBottom:active {
       background: var(--accent);
       color: #fff;
     }
@@ -531,8 +562,8 @@
         <div class="hero"><span class="logo">&gt;T&lt;</span><span class="word">Ternix</span></div>
         <h1>Link this phone</h1>
         <p class="sub">
-          On your computer, open Ternix → Settings → Phone and scan the QR code with your
-          camera. Opening the link it offers does the rest — there is nothing to type.
+          On your computer, open Ternix and pick Phone Access from the sidebar, then scan the
+          QR code with your camera. Opening the link it offers does the rest — nothing to type.
         </p>
         <p class="sub" id="pairHint"></p>
         <div id="pairErr" class="err"></div>
@@ -612,6 +643,7 @@
           <div class="key" data-k="pgdn">pgdn</div>
           <div class="key" data-k="kbd">⌨</div>
         </div>
+        <button id="toBottom" title="Jump to the newest output">↓</button>
       </div>
     </section>
   </div>
@@ -636,6 +668,12 @@
       'use strict';
 
       var KEY_KEY = 'ternix.key';
+      /**
+       * The pairing secret this phone last redeemed. A code is single-use, so re-presenting
+       * one is guaranteed to fail — and it is exactly what happens when the browser is closed
+       * and reopened onto the scanned `#p=` URL out of history or a restored tab.
+       */
+      var USED_KEY = 'ternix.pairUsed';
       var $ = function (id) { return document.getElementById(id); };
 
       // The device link key, base64. Proves which phone this is, and nothing else travels
@@ -737,10 +775,15 @@
       function pairFromHash() {
         var m = /[#&]p=([A-Za-z0-9_-]{43,})/.exec(location.hash || '');
         if (!m) return;
-        var pairKey = unb64url(m[1]);
+        var secret = m[1];
+        var pairKey = unb64url(secret);
         // Drop the secret out of the URL bar and history before anything else can read it.
         history.replaceState(null, '', location.pathname);
         if (pairKey.length !== nacl.secretbox.keyLength) { $('pairErr').textContent = 'That link looks damaged.'; return; }
+
+        // A code we already spent is a stale URL, not a link request. Redeeming it again
+        // would fail, and worse, each failure counts against the live code on the desktop.
+        if (secret === localStorage.getItem(USED_KEY) && deviceKey) { connect(); return; }
 
         $('pairErr').textContent = 'Linking…';
         fetch('/pair', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: seal({ name: deviceName() }, pairKey) })
@@ -748,15 +791,22 @@
           .then(function (res) {
             var payload = res.ok && res.j.sealed ? unseal(res.j.sealed, pairKey) : null;
             if (!payload || !payload.key) {
+              // Failing to pair says nothing about the key we already hold — an expired code
+              // must not strand a phone that is still perfectly well linked.
+              if (deviceKey) { $('pairErr').textContent = ''; connect(); return; }
               $('pairErr').textContent = res.ok ? 'Pairing failed.' : (res.j.error || 'That code has expired.');
               return;
             }
             deviceKey = payload.key;
             localStorage.setItem(KEY_KEY, deviceKey);
+            localStorage.setItem(USED_KEY, secret);
             $('pairErr').textContent = '';
             connect();
           })
-          .catch(function () { $('pairErr').textContent = 'Could not reach Ternix.'; });
+          .catch(function () {
+            if (deviceKey) { $('pairErr').textContent = ''; connect(); return; }
+            $('pairErr').textContent = 'Could not reach Ternix.';
+          });
       }
 
       // ------------------------------------------------------------ socket
@@ -810,7 +860,7 @@
           if (!m) return;   // tampered or stale — never parsed, never acted on
           if (m.t === 'list') onList(m);
           else if (m.t === 'attached') onAttached(m);
-          else if (m.t === 'data') { if (term) term.write(m.d); }
+          else if (m.t === 'data') { if (term) { term.write(m.d); syncToBottom(); } }
           else if (m.t === 'status') {
             // Progress while connecting is worth showing verbatim — "Waiting for credentials…"
             // explains a stall that an unexplained spinner does not.
@@ -998,6 +1048,7 @@
         show('termScreen');
         ensureTerm();
         term.reset();
+        syncToBottom();
         var g = fitGeometry();
         if (!send({ t: 'spawn', sessionId: sessionId, cols: g.cols, rows: g.rows })) {
           connecting = false;
@@ -1037,6 +1088,8 @@
         term.onResize(function (g) {
           if (pane && pane.owned) send({ t: 'resize', cols: g.cols, rows: g.rows });
         });
+
+        term.onScroll(syncToBottom);
       }
 
       /**
@@ -1062,7 +1115,7 @@
         layout();
         if (m.replay) term.write(m.replay);
         if (m.banner) term.write(m.banner.replace(/\n/g, '\r\n') + '\r\n');
-        setTimeout(function () { term.focus(); }, 50);
+        setTimeout(function () { term.focus(); syncToBottom(); }, 50);
       }
 
       /** Cols/rows the phone's viewport can hold at the current font size. */
@@ -1098,6 +1151,140 @@
           term.resize(pane.cols, pane.rows);
         }
       }
+
+      // ------------------------------------------------------------ scroll math
+
+      /** Below this a touch is a tap, not a drag — thumbs are never perfectly still. */
+      var DRAG_SLOP = 8;
+
+      /**
+       * Which way a gesture is going, or null while it is still too small to call.
+       *
+       * A tie goes to panning: only a mirrored pane wider than the phone can pan at all, and
+       * on that pane reading the far side is the whole reason to drag sideways.
+       */
+      function dragAxis(dx, dy, slop) {
+        if (Math.abs(dx) < slop && Math.abs(dy) < slop) return null;
+        return Math.abs(dy) > Math.abs(dx) ? 'y' : 'x';
+      }
+
+      /**
+       * Pixels dragged since the last move → whole lines to scroll, plus the leftover to
+       * carry into the next one. Without that carry a slow drag rounds to zero every time
+       * and the terminal simply never moves.
+       */
+      function scrollStep(movedPx, rest, lineHeight) {
+        var total = movedPx + rest;
+        var lines = Math.trunc(total / lineHeight);
+        return { lines: lines, rest: total - lines * lineHeight };
+      }
+
+      // ------------------------------------------------------------ scrollback
+      var drag = null;
+      var flingTimer = null;
+
+      function lineHeight() {
+        var row = document.querySelector('.xterm-rows > div');
+        return (row && row.offsetHeight) || 17;
+      }
+      $('termWrap').addEventListener('touchstart', function (e) {
+        if (flingTimer) {
+          cancelAnimationFrame(flingTimer);
+          flingTimer = null;
+        }
+        drag = term && e.touches.length === 1
+          ? {
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY,
+            rest: 0,
+            axis: null,
+            lh: lineHeight(),
+            vy: 0,
+            lastTime: Date.now()
+          }
+          : null;
+      }, { capture: true, passive: true });
+
+      $('termWrap').addEventListener('touchmove', function (e) {
+        if (!drag || !term || e.touches.length !== 1) return;
+        var t = e.touches[0];
+        var canPan = $('termWrap').classList.contains('pan');
+
+        if (!canPan) {
+          drag.axis = 'y';
+        } else if (!drag.axis) {
+          drag.axis = dragAxis(t.clientX - drag.x, t.clientY - drag.y, DRAG_SLOP);
+        }
+
+        if (drag.axis !== 'y') return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        var now = Date.now();
+        var dt = now - drag.lastTime;
+        var movedPx = (drag.y - t.clientY) * 1.35;
+        if (dt > 0) {
+          var instantVy = movedPx / dt;
+          drag.vy = drag.vy ? (drag.vy * 0.3 + instantVy * 0.7) : instantVy;
+        }
+        drag.lastTime = now;
+
+        var step = scrollStep(movedPx, drag.rest, drag.lh);
+        drag.rest = step.rest;
+        drag.y = t.clientY;
+        if (step.lines) {
+          term.scrollLines(step.lines);
+          syncToBottom();
+        }
+      }, { capture: true, passive: false });
+
+      $('termWrap').addEventListener('touchend', function () {
+        if (drag && drag.axis === 'y' && Math.abs(drag.vy) > 0.15 && (Date.now() - drag.lastTime) < 100) {
+          var velocity = drag.vy * 16;
+          var rest = drag.rest;
+          var lh = drag.lh;
+
+          var momentumStep = function () {
+            if (Math.abs(velocity) < 0.5 || !term) {
+              flingTimer = null;
+              return;
+            }
+            var step = scrollStep(velocity, rest, lh);
+            rest = step.rest;
+            if (step.lines) {
+              term.scrollLines(step.lines);
+              syncToBottom();
+            }
+            velocity *= 0.92;
+            flingTimer = requestAnimationFrame(momentumStep);
+          };
+          flingTimer = requestAnimationFrame(momentumStep);
+        }
+        drag = null;
+      }, { capture: true, passive: true });
+
+      /**
+       * The jump-back button, shown only while there is something below to jump to.
+       *
+       * It doubles as the hint that scrollback exists at all — and it matters more than on a
+       * desktop, because xterm holds its position when new output arrives, so a phone left
+       * scrolled up quietly stops showing anything new.
+       */
+      function syncToBottom() {
+        var b = term && term.buffer && term.buffer.active;
+        $('toBottom').classList.toggle('on', !!b && b.viewportY < b.baseY);
+      }
+
+      /* Swallowing the pointerdown keeps focus wherever it already was, so jumping to the
+         newest output never summons the on-screen keyboard. */
+      $('toBottom').onpointerdown = function (e) { e.preventDefault(); };
+
+      $('toBottom').onclick = function () {
+        if (!term) return;
+        term.scrollToBottom();
+        syncToBottom();
+      };
 
       function leave() {
         send({ t: 'detach' });
@@ -1214,7 +1401,7 @@
           var e = document.createElement('div');
           e.className = 'empty';
           e.textContent = sheetTab === 'quick'
-            ? 'No quick commands yet — add them in Ternix → Settings → Phone.'
+            ? 'No quick commands yet — add them in Ternix → Phone Access.'
             : 'No snippets for this session.';
           body.appendChild(e);
           return;
@@ -1272,7 +1459,7 @@
       syncViewport();
       // A fresh QR scan re-links even an already-linked phone, so the hash wins over the
       // stored key — that is the recovery path when a key is revoked from the desktop.
-      if (/[#&]p=/.test(location.hash || '')) { show('pairScreen'); pairFromHash(); }
+      if (/[#&]p=/.test(location.hash || '')) { if (!deviceKey) show('pairScreen'); pairFromHash(); }
       else if (deviceKey) { showWaiting('Connecting…', 'Reaching your computer.'); connect(); }
       else show('pairScreen');
 
@@ -1281,7 +1468,7 @@
       window.addEventListener('hashchange', function () {
         if (!/[#&]p=/.test(location.hash || '')) return;
         if (ws) { try { ws.close(); } catch (e) { } ws = null; }
-        show('pairScreen');
+        if (!deviceKey) show('pairScreen');
         pairFromHash();
       });
     })();

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Section, Row, ToggleSetting, SelectSetting } from './SettingControls'
+import { cn } from '@/utils/cn'
 import { formatSpeed } from '@/utils/formatBytes'
 import type { ReleaseNotes } from '@shared/index'
 
@@ -100,6 +102,7 @@ export function UpdateSettings() {
   const [state, setState] = useState<UpdateState>('idle')
   const [newVersion, setNewVersion] = useState('')
   const [notes, setNotes] = useState<ReleaseNotes | null>(null)
+  const [notesOpen, setNotesOpen] = useState(true)
   const [notesError, setNotesError] = useState('')
   const [status, setStatus] = useState('')
   const [progress, setProgress] = useState({ percent: 0, speed: 0 })
@@ -215,24 +218,32 @@ export function UpdateSettings() {
         {status && <div className="text-[11px] text-muted -mt-1">{status}</div>}
 
         {notes ? (
-          <div className="rounded-md border border-border bg-surface px-3 py-2.5">
-            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+          <div className="pt-3.5 mt-3.5 border-t border-border">
+            <button
+              className="w-full flex items-baseline gap-2 text-left"
+              onClick={() => setNotesOpen((o) => !o)}
+            >
+              <ChevronDown
+                size={13}
+                className={cn('text-muted shrink-0 self-center transition-transform', !notesOpen && '-rotate-90')}
+              />
               <div className="text-[11px] font-semibold text-text uppercase tracking-wide">
                 {`What's new in v${notes.version}`}
                 {notes.version !== version && <span className="ml-1.5 normal-case text-accent">(not installed yet)</span>}
               </div>
               {notes.publishedAt && (
-                <div className="text-[10px] text-muted shrink-0">{new Date(notes.publishedAt).toLocaleDateString()}</div>
+                <div className="ml-auto text-[10px] text-muted shrink-0">{new Date(notes.publishedAt).toLocaleDateString()}</div>
               )}
-            </div>
-            {notes.body.trim() ? (
-              <Markdown text={notes.body} />
-            ) : (
-              <div className="text-[11px] text-muted">This release was published without notes.</div>
-            )}
+            </button>
+            {notesOpen &&
+              (notes.body.trim() ? (
+                <div className="mt-1.5 pl-[21px]"><Markdown text={notes.body} /></div>
+              ) : (
+                <div className="mt-1.5 pl-[21px] text-[11px] text-muted">This release was published without notes.</div>
+              ))}
           </div>
         ) : (
-          notesError && <div className="text-[11px] text-muted">{notesError}</div>
+          notesError && <div className="pt-3.5 mt-3.5 border-t border-border text-[11px] text-muted">{notesError}</div>
         )}
       </Section>
     </div>

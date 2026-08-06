@@ -8,7 +8,7 @@
 
   <p>
     <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg" />
-    <img alt="Version" src="https://img.shields.io/badge/version-1.2.2-green.svg" />
+    <img alt="Version" src="https://img.shields.io/badge/version-1.2.3-green.svg" />
     <img alt="Platform" src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg" />
     <img alt="Electron" src="https://img.shields.io/badge/Electron-33-47848F?logo=electron" />
     <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react" />
@@ -188,7 +188,7 @@ Remote stats are gathered by a small `/proc` probe over the SSH connection. Whil
 
 ### 📱 Phone Access
 
-Turn on **Settings → Phone** and Ternix serves a small terminal your phone opens in its browser. A linked phone can start its own sessions or **mirror a pane already running on the desktop** — both ends are views onto the same connection, so what you type on either appears on both.
+Turn on **Phone Access** in the sidebar and Ternix serves a small terminal your phone opens in its browser. A linked phone can start its own sessions or **mirror a pane already running on the desktop** — both ends are views onto the same connection, so what you type on either appears on both.
 
 - **Two ways in.** *Local* serves your Wi-Fi directly. *Tunnel* publishes through a Cloudflare quick tunnel so the phone works on mobile data — `cloudflared` is downloaded on first use rather than bundled, so the installer stays small.
 - **Linking is a QR scan.** The QR carries a 256-bit key in the URL *fragment*, which browsers never transmit — so the key reaches your phone without crossing the network at all. It is blurred on screen until you reveal it, single-use, and expires after two minutes.
@@ -432,11 +432,14 @@ node --experimental-strip-types electron/services/mobileGate.check.ts
 node --experimental-strip-types electron/services/pairingGate.check.ts
 node --experimental-strip-types electron/services/mobileCrypto.check.ts
 node --experimental-strip-types electron/services/mobileCrypto.interop.check.ts
+node --experimental-strip-types electron/services/mobilePairBoot.check.ts
+node --experimental-strip-types electron/services/mobileTouchScroll.check.ts
+node --experimental-strip-types src/utils/blendHex.check.ts
 node --experimental-strip-types src/utils/sftpSort.check.ts
 node --experimental-strip-types src/utils/statsTarget.check.ts
 ```
 
-`mobileCrypto.interop.check.ts` is the odd one out: it lifts the phone client's crypto helpers straight out of `resources/mobile/index.html` and runs them against the desktop's, so the browser and Node implementations can't silently drift apart.
+`mobileCrypto.interop.check.ts`, `mobilePairBoot.check.ts` and `mobileTouchScroll.check.ts` are the odd ones out: they lift the phone client's own code straight out of `resources/mobile/index.html` — its crypto helpers, its pairing boot path and its drag-to-scroll arithmetic — and drive it from Node, so the browser and desktop implementations can't silently drift apart.
 
 ---
 

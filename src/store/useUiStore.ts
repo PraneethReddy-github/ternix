@@ -21,7 +21,7 @@ export type OpenDialog = DialogKind & { _id: number }
 /** Mirrors the SECTIONS list in SettingsPanel; kept here so the store can address a section. */
 export type SettingsSection =
   | 'general' | 'terminal' | 'appearance' | 'ssh' | 'security'
-  | 'keyboard' | 'transfers' | 'phone' | 'updates' | 'advanced'
+  | 'keyboard' | 'transfers' | 'updates' | 'advanced'
 
 interface UiState {
   activeView: ActivityView

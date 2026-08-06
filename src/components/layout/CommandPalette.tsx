@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Server, TerminalSquare, Command, Code2, Settings, KeyRound, SplitSquareHorizontal } from 'lucide-react'
+import { Server, TerminalSquare, Command, Code2, Settings, KeyRound, SplitSquareHorizontal, Smartphone } from 'lucide-react'
 import { useUiStore } from '@/store/useUiStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useTabStore } from '@/store/useTabStore'
@@ -45,6 +45,7 @@ export function CommandPalette() {
       { id: 'a.sftp', label: 'Open SFTP file manager', icon: <Code2 size={15} />, run: () => useUiStore.getState().toggleSftp() },
       { id: 'a.keyVault', label: 'Open key vault', icon: <KeyRound size={15} />, run: () => openDialog({ kind: 'keyVault' }) },
       { id: 'a.broadcast', label: 'Toggle broadcast mode', icon: <Command size={15} />, run: () => { const t = useTabStore.getState(); t.activeTabId && t.toggleBroadcast(t.activeTabId) } },
+      { id: 'a.phone', label: 'Open phone access', icon: <Smartphone size={15} />, run: () => setView('phone') },
       { id: 'a.settings', label: 'Open settings', icon: <Settings size={15} />, run: () => setView('settings') },
       { id: 'a.import', label: 'Import sessions', icon: <Server size={15} />, run: () => openDialog({ kind: 'exportImport' }) },
       { id: 'a.export', label: 'Export sessions', icon: <Server size={15} />, run: () => openDialog({ kind: 'exportImport' }) }

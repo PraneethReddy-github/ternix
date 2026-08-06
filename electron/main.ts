@@ -135,7 +135,7 @@ app.whenReady().then(async () => {
   // Phone access is opt-in and off by default — it opens a listening socket.
   if (settingsRepo.get('mobile.enabled') === 'true') {
     MobileService.start(mobilePort()).catch(() => {
-      /* surfaced in Settings → Phone via mobile:status */
+      /* surfaced in the Phone Access view via mobile:status */
     })
   }
 

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import { Trash2, RefreshCw, Plus, Download, CheckCircle2, ShieldCheck, Info, X, Eye, EyeOff } from 'lucide-react'
+import { Trash2, RefreshCw, Plus, Download, CheckCircle2, ShieldCheck, Info, X, Eye, EyeOff, Smartphone } from 'lucide-react'
 import type { CloudflaredStatus, MobileQuickCommand, MobileStatus } from '@shared/index'
 import { useSettingsStore } from '@/store/useSettingsStore'
-import { Section, Row, NumberSetting } from './SettingControls'
+import { useUiStore } from '@/store/useUiStore'
+import { Section, Row, NumberSetting } from '@/components/settings/SettingControls'
 import { Toggle } from '@/components/ui/Toggle'
 import { cn } from '@/utils/cn'
 
@@ -26,7 +27,14 @@ function formatCountdown(ms: number): string {
 
 const PAIR_TTL_MS = 120_000
 
-export function PhoneSettings() {
+/**
+ * Phone access, as a view of its own rather than a settings section.
+ *
+ * It owns the whole content area for one reason: the QR code is the point of the screen and
+ * it is scanned off a monitor from arm's length. In the settings column it was rendered at
+ * 128px because that was the room available, which is a poor size to photograph.
+ */
+export function PhonePanel() {
   const [status, setStatus] = useState<MobileStatus | null>(null)
   const [cf, setCf] = useState<CloudflaredStatus | null>(null)
   const [pair, setPair] = useState<{ secret: string; expiresAt: number } | null>(null)
@@ -42,6 +50,7 @@ export function PhoneSettings() {
   /** Guards against two overlapping mints; a second code would invalidate the first. */
   const minting = useRef(false)
   const setSetting = useSettingsStore((s) => s.set)
+  const setView = useUiStore((s) => s.setView)
   const port = useSettingsStore((s) => s.getNum('mobile.port'))
 
   const localUrl = status?.lanUrls[0] ?? null
@@ -128,7 +137,7 @@ export function PhoneSettings() {
       return
     }
     let live = true
-    QRCode.toDataURL(`${activeUrl}/#p=${pair.secret}`, { width: 220, margin: 1 })
+    QRCode.toDataURL(`${activeUrl}/#p=${pair.secret}`, { width: 512, margin: 1 })
       .then((d) => live && setQr(d))
       .catch(() => live && setQr(null))
     return () => {
@@ -175,172 +184,224 @@ export function PhoneSettings() {
   const tunnelStarting = !!status?.tunnelStarting
 
   return (
-    <div>
-      <Section title="Phone Access">
-        <p className="text-[12px] text-muted -mt-1 mb-1">
-          A web terminal your phone opens in its browser. Link by QR scan; unlink any phone anytime.
-        </p>
-        <Row label="Enable phone access" hint={running ? `Listening on port ${status?.port}` : 'Off — no network port is open'}>
-          <Toggle checked={running} onChange={toggleServer} disabled={busy} />
-        </Row>
-        <Row label="Port" hint="Restart phone access after changing">
-          <NumberSetting k="mobile.port" min={1024} max={65535} />
-        </Row>
-      </Section>
+    <div className="flex-1 flex flex-col min-h-0 bg-bg">
+      <div className="h-9 flex items-center gap-2 px-3 border-b border-border shrink-0">
+        <Smartphone size={14} className="text-muted" />
+        <span className="text-[11px] uppercase tracking-wide text-muted font-semibold">Phone Access</span>
+        <span className="flex-1" />
+        {/* Nothing about being off belongs up here — the empty state below already says it,
+            and says it next to the two controls that do something about it. */}
+        {running && (
+          <>
+            <span className="text-[11px] text-muted">Listening on port {status?.port}</span>
+            <Toggle checked={running} onChange={toggleServer} disabled={busy} />
+          </>
+        )}
+        <button className="text-muted hover:text-text ml-2" onClick={() => setView('sessions')} title="Close">
+          <X size={14} />
+        </button>
+      </div>
 
-      {running && (
-        <Section title="Link a Phone">
-          <div className="flex items-center gap-4 mb-4 border-b border-border">
-            {([['local', 'Local'], ['tunnel', 'Tunnel']] as [ConnectMode, string][]).map(([m, label]) => (
-              <button
-                key={m}
-                className={cn(
-                  'pb-2 text-[12px] font-medium transition-colors border-b-2 -mb-[1px]',
-                  mode === m ? 'text-accent border-accent' : 'text-muted border-transparent hover:text-text'
-                )}
-                onClick={() => setMode(m)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {mode === 'tunnel' && !tunnelUrl && (
-            <TunnelSetup cf={cf} status={status} busy={busy} run={run} setCf={setCf} />
-          )}
-
-          {mode === 'tunnel' && tunnelUrl && (
-            <Row label="Tunnel active" hint="Stop when you no longer need remote access">
-              <button
-                className="tx-btn text-red-400"
-                disabled={busy}
-                onClick={() => {
-                  setMode('local')
-                  run(async () => setStatus(await window.ternix.mobile.stopTunnel()))
-                }}
-              >
-                Stop tunnel
-              </button>
-            </Row>
-          )}
-
-          {activeUrl && (
-            <>
-              {justLinked ? (
-                <div className="text-[12px] text-green-400">✓ Phone linked — generating a new code…</div>
-              ) : pair ? (
-                <div className="flex items-start gap-4 pt-1">
-                  {qr && (
-                    <button
-                      type="button"
-                      onClick={() => setRevealed((v) => !v)}
-                      title={revealed ? 'Hide QR code' : 'Show QR code'}
-                      aria-label={revealed ? 'Hide QR code' : 'Show QR code'}
-                      className="group relative w-32 h-32 shrink-0 rounded bg-white p-1.5 overflow-hidden"
-                    >
-                      <img
-                        src={qr}
-                        alt="Pairing QR code"
-                        className={cn('w-full h-full transition-[filter] duration-300', revealed && 'blur-0')}
-                      />
-                      {revealed ? (
-                        <span className="absolute top-1 right-1 rounded bg-black/60 text-white p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <EyeOff size={12} />
-                        </span>
-                      ) : (
-                        <>
-                          <span className="absolute inset-0 backdrop-blur-[4px] bg-black/25" />
-                          <span className="absolute inset-0 flex items-center justify-center">
-                            <Eye size={20} className="text-white drop-shadow-lg transition-transform duration-300 ease-out group-hover:-translate-y-3" />
-                          </span>
-                          <span className="absolute inset-0 flex items-center justify-center pt-8 opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 ease-out">
-                            <span className="text-[10px] font-medium text-white/90">Show QR</span>
-                          </span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                  <div className="min-w-0">
-                    <div className="text-[13px] text-text font-medium">Scan with your phone&apos;s camera</div>
-                    {/* Why scanning matters is one tap away under the ⓘ — repeating it out here is
-                        half of what made this panel a wall of text. */}
-                    <div className="text-[12px] text-muted mt-0.5">Then open the link it offers.</div>
-                    <div className="flex items-center gap-3 mt-2.5">
-                      <div className={cn('text-[11px] tabular-nums', remaining < 15000 ? 'text-red-400' : 'text-muted')}>
-                        {formatCountdown(remaining)} remaining
-                      </div>
-                      <div className="w-20 h-1 bg-surface rounded-full overflow-hidden">
-                        <div
-                          className={cn('h-full transition-all duration-1000 ease-linear rounded-full', remaining < 15000 ? 'bg-red-400' : 'bg-accent')}
-                          style={{ width: `${Math.max(0, (remaining / PAIR_TTL_MS) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-muted mt-1">Single use · refreshes itself</div>
-                    <button className="tx-btn-ghost text-[11px] mt-1.5 -ml-2" onClick={generateCode}>
-                      <RefreshCw size={11} /> New code
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-[12px] text-muted">Generating code…</div>
-              )}
-
-              {/* Under the QR, where it reads as a footnote rather than a step. The QR carries
-                  this address plus the pairing secret, so this line is only ever "which address
-                  am I on" — worth showing when a machine has several, never worth acting on. */}
-              <div className="flex items-start justify-between gap-4 pt-3 mt-3 border-t border-border">
-                <div className="min-w-0">
-                  <code className="text-[11px] text-muted select-all break-all">{activeUrl}</code>
-                  <div className="text-[11px] text-muted">
-                    {mode === 'tunnel' ? 'Works from any network' : 'Same Wi-Fi only'}
-                  </div>
-                </div>
-                <span className="flex items-center gap-1 shrink-0">
-                  <ShieldCheck size={12} className="text-green-400 shrink-0" />
-                  <span className="text-[11px] text-text">End-to-end encrypted</span>
-                  <SecurityInfo mode={mode} />
-                </span>
-              </div>
-            </>
-          )}
-
-          {!activeUrl && mode === 'local' && (
-            <p className="text-[12px] text-muted">No reachable network address found.</p>
-          )}
-          {!activeUrl && mode === 'tunnel' && tunnelStarting && (
-            <p className="text-[12px] text-muted">The QR code appears here once the tunnel is up.</p>
-          )}
-        </Section>
-      )}
-
-      <QuickCommands />
-
-      <Section title={`Linked Phones${status?.devices.length ? ` (${status.devices.length})` : ''}`}>
-        {status?.devices.length ? (
-          <div className="max-h-56 overflow-y-auto pr-1">
-            {status.devices.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-3 py-1.5 border-b border-border last:border-0">
-                <div className="min-w-0">
-                  <div className="text-[13px] text-text">{d.name}</div>
-                  <div className="text-[11px] text-muted">Linked {relative(d.createdAt)} · last used {relative(d.lastSeen)}</div>
-                </div>
-                <button
-                  className="tx-btn text-red-400"
-                  onClick={() => run(async () => setStatus(await window.ternix.mobile.revokeDevice(d.id)))}
-                  title="Unlink this phone"
-                >
-                  <Trash2 size={13} /> Unlink
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-6xl mx-auto px-8 py-6">
+          {!running ? (
+            <div className="flex flex-col items-center text-center py-20">
+              <Smartphone size={40} className="text-muted mb-4" />
+              <div className="text-[15px] text-text font-medium">Phone access is off</div>
+              <p className="text-[13px] text-muted mt-1.5 max-w-md">
+                Turn it on to open a web terminal your phone reaches in its browser. Link by QR
+                scan; unlink any phone at any time.
+              </p>
+              {/* The port sits beside the button because the one time it needs changing is the
+                  one time this screen is up: something else already holds the default. */}
+              <div className="flex items-center gap-2 mt-5">
+                <label className="flex items-center gap-2 text-[13px] text-muted">
+                  Port
+                  <NumberSetting k="mobile.port" min={1024} max={65535} />
+                </label>
+                <button className="tx-btn-primary" disabled={busy} onClick={toggleServer}>
+                  Turn on phone access
                 </button>
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-[12px] text-muted">No phones linked yet.</p>
-        )}
-      </Section>
+              {error && <div className="text-[12px] text-red-400 mt-3 max-w-sm">{error}</div>}
+            </div>
+          ) : (
+            <div className="grid gap-x-10 gap-y-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start">
+              <div>
+                <Section title="Link a Phone">
+                  <div className="flex items-center gap-4 -mt-1 mb-3 border-b border-border">
+                    {([['local', 'Local'], ['tunnel', 'Tunnel']] as [ConnectMode, string][]).map(([m, label]) => (
+                      <button
+                        key={m}
+                        className={cn(
+                          'pb-2 text-[12px] font-medium transition-colors border-b-2 -mb-[1px]',
+                          mode === m ? 'text-accent border-accent' : 'text-muted border-transparent hover:text-text'
+                        )}
+                        onClick={() => setMode(m)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
 
-      {error && <div className="text-[12px] text-red-400">{error}</div>}
+                  {mode === 'tunnel' && !tunnelUrl && (
+                    <TunnelSetup cf={cf} status={status} busy={busy} run={run} setCf={setCf} />
+                  )}
+
+                  {mode === 'tunnel' && tunnelUrl && (
+                    <Row label="Tunnel active" hint="Stop when you no longer need remote access">
+                      <button
+                        className="tx-btn text-red-400"
+                        disabled={busy}
+                        onClick={() => {
+                          setMode('local')
+                          run(async () => setStatus(await window.ternix.mobile.stopTunnel()))
+                        }}
+                      >
+                        Stop tunnel
+                      </button>
+                    </Row>
+                  )}
+
+                  {activeUrl && (
+                    <>
+                      {justLinked ? (
+                        <div className="text-[12px] text-green-400">✓ Phone linked — generating a new code…</div>
+                      ) : pair ? (
+                        <div className="flex flex-col items-center gap-3 pt-1">
+                          {qr && (
+                            <button
+                              type="button"
+                              onClick={() => setRevealed((v) => !v)}
+                              title={revealed ? 'Hide QR code' : 'Show QR code'}
+                              aria-label={revealed ? 'Hide QR code' : 'Show QR code'}
+                              className="group relative w-64 h-64 shrink-0 rounded-lg bg-white p-3 overflow-hidden"
+                            >
+                              <img
+                                src={qr}
+                                alt="Pairing QR code"
+                                className={cn('w-full h-full transition-[filter] duration-300', revealed && 'blur-0')}
+                              />
+                              {revealed ? (
+                                <span className="absolute top-2 right-2 rounded bg-black/60 text-white p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <EyeOff size={13} />
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="absolute inset-0 backdrop-blur-[6px] bg-black/25" />
+                                  <span className="absolute inset-0 flex items-center justify-center">
+                                    <Eye size={26} className="text-white drop-shadow-lg transition-transform duration-300 ease-out group-hover:-translate-y-4" />
+                                  </span>
+                                  <span className="absolute inset-0 flex items-center justify-center pt-11 opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 ease-out">
+                                    <span className="text-[12px] font-medium text-white/90">Show QR</span>
+                                  </span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                          <div className="text-center">
+                            <div className="text-[13px] text-text font-medium">Scan with your phone&apos;s camera</div>
+                            {/* Why scanning matters is one tap away under the ⓘ — repeating it out here is
+                                half of what made this panel a wall of text. */}
+                            <div className="text-[12px] text-muted mt-0.5">Then open the link it offers.</div>
+                            <div className="flex items-center justify-center gap-3 mt-2.5">
+                              <div className={cn('text-[11px] tabular-nums', remaining < 15000 ? 'text-red-400' : 'text-muted')}>
+                                {formatCountdown(remaining)} remaining
+                              </div>
+                              <div className="w-20 h-1 bg-surface rounded-full overflow-hidden">
+                                <div
+                                  className={cn('h-full transition-all duration-1000 ease-linear rounded-full', remaining < 15000 ? 'bg-red-400' : 'bg-accent')}
+                                  style={{ width: `${Math.max(0, (remaining / PAIR_TTL_MS) * 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-muted mt-1">Single use · refreshes itself</div>
+                            <button className="tx-btn-ghost text-[11px] mt-1.5" onClick={generateCode}>
+                              <RefreshCw size={11} /> New code
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-[12px] text-muted">Generating code…</div>
+                      )}
+
+                      {/* Under the QR, where it reads as a footnote rather than a step. The QR carries
+                          this address plus the pairing secret, so this line is only ever "which address
+                          am I on" — worth showing when a machine has several, never worth acting on. */}
+                      <div className="flex items-start justify-between gap-4 pt-3 mt-3 border-t border-border">
+                        <div className="min-w-0">
+                          <code className="text-[11px] text-muted select-all break-all">{activeUrl}</code>
+                          <div className="text-[11px] text-muted">
+                            {mode === 'tunnel' ? 'Works from any network' : 'Same Wi-Fi only'}
+                          </div>
+                        </div>
+                        <span className="flex items-center gap-1 shrink-0">
+                          <ShieldCheck size={12} className="text-green-400 shrink-0" />
+                          <span className="text-[11px] text-text">End-to-end encrypted</span>
+                          <SecurityInfo mode={mode} />
+                        </span>
+                      </div>
+
+                      {/* A quick tunnel gets a fresh hostname every start, and a browser scopes its
+                          stored link key to the hostname it was paired on. Saying so here is the
+                          difference between "the link broke" and "this address is new". */}
+                      {mode === 'tunnel' && (
+                        <p className="text-[11px] text-muted pt-2">
+                          This address changes each time the tunnel starts, and a phone has to be
+                          linked once per address.
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {!activeUrl && mode === 'local' && (
+                    <p className="text-[12px] text-muted">No reachable network address found.</p>
+                  )}
+                  {!activeUrl && mode === 'tunnel' && tunnelStarting && (
+                    <p className="text-[12px] text-muted">The QR code appears here once the tunnel is up.</p>
+                  )}
+                </Section>
+              </div>
+
+              <div>
+                <Section title={`Linked Phones${status?.devices.length ? ` (${status.devices.length})` : ''}`}>
+                  {status?.devices.length ? (
+                    <div className="max-h-72 overflow-y-auto pr-1">
+                      {status.devices.map((d) => (
+                        <div key={d.id} className="flex items-center justify-between gap-3 py-1.5 border-b border-border last:border-0">
+                          <div className="min-w-0">
+                            <div className="text-[13px] text-text">{d.name}</div>
+                            <div className="text-[11px] text-muted">Linked {relative(d.createdAt)} · last used {relative(d.lastSeen)}</div>
+                          </div>
+                          <button
+                            className="tx-btn text-red-400"
+                            onClick={() => run(async () => setStatus(await window.ternix.mobile.revokeDevice(d.id)))}
+                            title="Unlink this phone"
+                          >
+                            <Trash2 size={13} /> Unlink
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[12px] text-muted">No phones linked yet.</p>
+                  )}
+                </Section>
+
+                <QuickCommands />
+
+                <Section title="Server">
+                  <Row label="Port" hint="Restart phone access after changing">
+                    <NumberSetting k="mobile.port" min={1024} max={65535} />
+                  </Row>
+                </Section>
+              </div>
+            </div>
+          )}
+
+          {error && running && <div className="text-[12px] text-red-400">{error}</div>}
+        </div>
+      </div>
     </div>
   )
 }
@@ -538,8 +599,8 @@ function SecurityInfo({ mode }: { mode: ConnectMode }) {
               </div>
 
               <p className="text-muted">
-                Every linked phone is listed below and can be unlinked instantly. Unlinking takes effect
-                straight away, even mid-session.
+                Every linked phone is listed beside this panel and can be unlinked instantly. Unlinking
+                takes effect straight away, even mid-session.
               </p>
             </div>
           </div>
@@ -576,7 +637,7 @@ function QuickCommands() {
       </p>
 
       {/* Same reason as the phone list: this grows without bound, the panel should not. */}
-      <div className="max-h-56 overflow-y-auto space-y-3 pr-1">
+      <div className="max-h-72 overflow-y-auto space-y-3 pr-1">
         {list.map((q, i) => (
           <div key={i} className="flex items-center gap-2">
             {/* tx-input is w-full, so both need an explicit basis or the label eats the row. */}

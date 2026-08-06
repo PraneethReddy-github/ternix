@@ -10,6 +10,7 @@ import { DialogHost } from '@/components/dialogs/DialogHost'
 import { GlobalPrompts } from '@/components/terminal/GlobalPrompts'
 import { Toast } from './Toast'
 import { SettingsPanel } from '@/components/settings/SettingsPanel'
+import { PhonePanel } from '@/components/phone/PhonePanel'
 import { useUiStore } from '@/store/useUiStore'
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts'
 import { StatsPoller } from '@/components/layout/StatsPoller'
@@ -19,6 +20,7 @@ export function RootLayout() {
   const activeView = useUiStore((s) => s.activeView)
   const [sidebarWidth, setSidebarWidth] = useState(260)
   const dragging = useRef(false)
+  const fullView = activeView === 'settings' || activeView === 'phone'
 
   useGlobalShortcuts()
 
@@ -42,14 +44,15 @@ export function RootLayout() {
       <TitleBar />
       <div className="flex-1 flex min-h-0">
         <ActivityBar />
-        {/* Keep the terminal area mounted at all times — hide it behind the
-            settings view rather than unmounting it. Unmounting would tear down
+        {/* Keep the terminal area mounted at all times — hide it behind a
+            full-area view rather than unmounting it. Unmounting would tear down
             every pane's xterm instance and kill its PTY, losing all session
-            state when the user returns from settings. */}
-        <div className="flex-1 flex min-h-0" style={{ display: activeView === 'settings' ? 'none' : 'flex' }}>
+            state when the user comes back. */}
+        <div className="flex-1 flex min-h-0" style={{ display: fullView ? 'none' : 'flex' }}>
           <Content collapsed={collapsed} sidebarWidth={sidebarWidth} onDragStart={onDragStart} />
         </div>
         {activeView === 'settings' && <SettingsPanel />}
+        {activeView === 'phone' && <PhonePanel />}
       </div>
       <StatusBar />
       <BroadcastBar />

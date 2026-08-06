@@ -20,7 +20,7 @@ export const SETTING_DEFAULTS: SettingsMap = {
   'terminal.trimPasteWhitespace': 'false',
   'terminal.rightClick': 'menu',
   'appearance.theme': 'dark-default',
-  'appearance.fontFamily': "'Fira Code', monospace",
+  'appearance.fontFamily': "'Cascadia Code', monospace",
   'appearance.fontSize': '14',
   'appearance.lineHeight': '1.2',
   'appearance.letterSpacing': '0',

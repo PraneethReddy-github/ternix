@@ -1,4 +1,4 @@
-import { Server, FolderUp, Code2, Plug, CircleDot, Settings, Search, KeyRound, Sun, Moon, Activity } from 'lucide-react'
+import { Server, FolderUp, Code2, Plug, CircleDot, Settings, Search, KeyRound, Sun, Moon, Activity, Smartphone } from 'lucide-react'
 import type { ActivityView } from '@shared/ui'
 import { useUiStore } from '@/store/useUiStore'
 import { useThemeStore } from '@/store/useThemeStore'
@@ -11,9 +11,13 @@ const VIEWS: { id: ActivityView; icon: typeof Server; label: string }[] = [
   { id: 'tunnels', icon: Plug, label: 'Tunnels' },
   { id: 'recordings', icon: CircleDot, label: 'Recordings' },
   { id: 'monitor', icon: Activity, label: 'Monitor' },
+  { id: 'phone', icon: Smartphone, label: 'Phone Access' },
   { id: 'search', icon: Search, label: 'Search' },
   { id: 'settings', icon: Settings, label: 'Settings' }
 ]
+
+/** Views that take the whole content area, so they have no sidebar to toggle. */
+const FULL_VIEWS = new Set<ActivityView>(['settings', 'phone'])
 
 export function ActivityBar() {
   const activeView = useUiStore((s) => s.activeView)
@@ -33,7 +37,8 @@ export function ActivityBar() {
   return (
     <div className="w-12 bg-bg border-r border-border flex flex-col items-center py-2 gap-1 shrink-0">
       {VIEWS.map(({ id, icon: Icon, label }) => {
-        const active = activeView === id && !collapsed
+        const full = FULL_VIEWS.has(id)
+        const active = activeView === id && (full || !collapsed)
         return (
           <button
             key={id}
@@ -42,7 +47,7 @@ export function ActivityBar() {
               'relative w-10 h-10 flex items-center justify-center rounded-input transition-colors',
               active ? 'text-text' : 'text-muted hover:text-text hover:bg-surface-2'
             )}
-            onClick={() => (activeView === id ? toggleSidebar() : setView(id))}
+            onClick={() => (activeView === id && !full ? toggleSidebar() : setView(id))}
           >
             {active && <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-accent rounded-r" />}
             <Icon size={20} />

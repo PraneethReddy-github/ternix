@@ -1,4 +1,4 @@
-import { Settings, TerminalSquare, Palette, Keyboard, Server, Shield, ArrowLeftRight, RefreshCw, Smartphone, Wrench, X } from 'lucide-react'
+import { Settings, TerminalSquare, Palette, Keyboard, Server, Shield, ArrowLeftRight, RefreshCw, Wrench, X } from 'lucide-react'
 import { useUiStore } from '@/store/useUiStore'
 import { GeneralSettings } from './GeneralSettings'
 import { TerminalSettings } from './TerminalSettings'
@@ -9,7 +9,6 @@ import { SecuritySettings } from './SecuritySettings'
 import { FileTransferSettings } from './FileTransferSettings'
 import { UpdateSettings } from './UpdateSettings'
 import { AdvancedSettings } from './AdvancedSettings'
-import { PhoneSettings } from './PhoneSettings'
 import { cn } from '@/utils/cn'
 
 const SECTIONS = [
@@ -20,7 +19,6 @@ const SECTIONS = [
   { id: 'security', label: 'Security', icon: Shield, Comp: SecuritySettings },
   { id: 'keyboard', label: 'Keyboard', icon: Keyboard, Comp: KeyboardSettings },
   { id: 'transfers', label: 'File Transfers', icon: ArrowLeftRight, Comp: FileTransferSettings },
-  { id: 'phone', label: 'Phone', icon: Smartphone, Comp: PhoneSettings },
   { id: 'updates', label: 'Updates', icon: RefreshCw, Comp: UpdateSettings },
   { id: 'advanced', label: 'Advanced', icon: Wrench, Comp: AdvancedSettings }
 ] as const

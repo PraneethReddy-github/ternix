@@ -223,8 +223,11 @@ class MobileServiceImpl {
         }
         wss.handleUpgrade(req, socket, head, (ws) => this.onSocket(ws))
       })
-
-      http.on('error', reject)
+      http.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') reject(new Error(`Port ${port} is already in use — try a different port.`))
+        else if (err.code === 'EACCES') reject(new Error(`This computer will not let Ternix open port ${port} — try a port above 1024.`))
+        else reject(err)
+      })
       // 0.0.0.0 on purpose: the phone is another machine. Auth is the boundary, not the bind.
       http.listen(port, '0.0.0.0', () => {
         const addr = http.address()
